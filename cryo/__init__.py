@@ -14,7 +14,7 @@ class Frozen:
 
 def freeze(obj: object):
     obj_type = obj.__class__
-    frozen_type = type(f"Frozen{obj_type.__name__}", (Frozen, *obj_type.__bases__), dict(obj_type.__dict__))
+    frozen_type = type(f"Frozen{obj_type.__name__}", (Frozen, obj_type), dict(obj_type.__dict__))
     frozen_type.__repr__ = lambda self: f"<Frozen({obj_type.__repr__(self)})>"
 
     obj.__class__ = frozen_type
