@@ -1,31 +1,98 @@
+from cryo._builtin_helpers import _set_class_on_builtin
+
+__all__ = ["ImmutableError", "freeze"]
+
+
+def _raise_immutable_error():
+    raise ImmutableError("This object is immutable")
+
 class ImmutableError(Exception):
     pass
 
 
 class Frozen:
-    __freeze_attribute_assignment = True
-    __freeze_item_assignment = True
+    __freeze_attributes = True
+    __freeze_items = True
 
     def __setattr__(self, name, value):
-        if self.__freeze_attribute_assignment:
-            raise ImmutableError("This object is immutable")
+        if self.__freeze_attributes:
+            _raise_immutable_error()
         else:
             return super().__setattr__(name, value)
+
+    def __delattr__(self, name):
+        if self.__freeze_attributes:
+            _raise_immutable_error()
+        else:
+            return super().__delattr__(name)
 
     def __setitem__(self, name, value):
-        if self.__freeze_item_assignment:
-            raise ImmutableError("This object is immutable")
+        if self.__freeze_items:
+            _raise_immutable_error()
         else:
-            return super().__setattr__(name, value)
+            return super().__setitem__(name, value)
 
+    def __delitem__(self, name):
+        if self.__freeze_items:
+            _raise_immutable_error()
+        else:
+            return super().__delitem__(name)
 
-def freeze(obj: object, *, freeze_attribute_assignment=True, freeze_item_assignment=True, recursive=True):
-    obj_type = obj.__class__
+def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
+
+    # Create new type that inherits from Frozen and the original object's type
     frozen_type = type(f"Frozen{obj_type.__name__}",
                        (Frozen, obj_type),
-                       {"_Frozen__freeze_attribute_assignment": freeze_attribute_assignment,
-                        "_Frozen__freeze_item_assignment": freeze_item_assignment})
+                       {"_Frozen__freeze_attributes": fr_attr,
+                        "_Frozen__freeze_items": fr_item})
+
+    # Add new __repr__ that encloses the original repr in <Frozen()>
     frozen_type.__repr__ = lambda self: f"<Frozen({obj_type.__repr__(self)})>"
 
-    obj.__class__ = frozen_type
+    # Deal with mutable methods of lists
+    # Gathered from _collections_abc.py:MutableSequence and https://docs.python.org/3/library/stdtypes.html#mutable-sequence-types
+    if issubclass(obj_type, list):
+        frozen_type.insert = lambda self, i, x: _raise_immutable_error()
+        frozen_type.append = lambda self, x: _raise_immutable_error()
+        frozen_type.clear = lambda self, x: _raise_immutable_error()
+        frozen_type.reverse = lambda self: _raise_immutable_error()
+        frozen_type.extend = lambda self, x: _raise_immutable_error()
+        frozen_type.pop = lambda self, x=None: _raise_immutable_error()
+        frozen_type.remove = lambda self, x: _raise_immutable_error()
+        frozen_type.__iadd__ = lambda self, x: _raise_immutable_error()
+        frozen_type.__imul__ = lambda self, x: _raise_immutable_error()
+
+    # Deal with mutable methods of dict
+    # Gathered from _collections_abc.py:MutableMapping and https://docs.python.org/3/library/stdtypes.html#mapping-types-dict
+    if issubclass(obj_type, dict):
+        frozen_type.pop = lambda self, key, default=None: _raise_immutable_error()
+        frozen_type.popitem = lambda self: _raise_immutable_error()
+        frozen_type.clear = lambda self: _raise_immutable_error()
+        frozen_type.update = lambda self, other=(), **kwds: _raise_immutable_error()
+        frozen_type.setdefault = lambda self, key, default=None: _raise_immutable_error()
+        frozen_type.__ior__ = lambda self, it: _raise_immutable_error()
+
+    # Deal with mutable methods of dict
+    # Gathered from _collections_abc.py:MutableSet and https://docs.python.org/3/library/stdtypes.html#set-types-set-frozenset
+    if issubclass(obj_type, set):
+        frozen_type.add = lambda self, value: _raise_immutable_error()
+        frozen_type.discard = lambda self, value: _raise_immutable_error()
+        frozen_type.remove = lambda self, value: _raise_immutable_error()
+        frozen_type.pop = lambda self: _raise_immutable_error()
+        frozen_type.clear = lambda self: _raise_immutable_error()
+        frozen_type.__ior__ = lambda self, it: _raise_immutable_error()
+        frozen_type.__iand__ = lambda self, it: _raise_immutable_error()
+        frozen_type.__ixor__ = lambda self, it: _raise_immutable_error()
+        frozen_type.__isub__ = lambda self, it: _raise_immutable_error()
+
+    return frozen_type
+
+
+def freeze(obj: object, *, freeze_attributes=True, freeze_items=True):
+    obj_type = obj.__class__
+    frozen_type = _create_dynamic_frozen_type(obj_type, freeze_attributes, freeze_items)
+    if isinstance(obj, (list, set, dict)):
+        _set_class_on_builtin(obj, frozen_type)
+    else:
+        obj.__class__ = frozen_type
     return obj
