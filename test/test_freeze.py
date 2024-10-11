@@ -1,3 +1,4 @@
+import contextlib
 import gc
 from copy import deepcopy
 from inspect import signature
@@ -23,6 +24,9 @@ def dummy_class():
 
         def __setitem__(self, key, value):
             self._list[key] = value
+
+        def __delitem__(self, key):
+            del self._list[key]
 
     return Dummy
 
@@ -52,24 +56,62 @@ def test_freeze(dummy_class):
     assert issubclass(dummy.__class__, dummy_class)
 
 
-def test_freeze_attribute_assignment(dummy_class):
+@pytest.mark.parametrize(
+    ["freeze_attributes", "context"],
+    [pytest.param(freeze_attributes, context, id=f"{freeze_attributes=}")
+     for freeze_attributes, context in
+     zip((True, False), (pytest.raises(ImmutableError), contextlib.nullcontext()))])
+def test_freeze_attribute_assignment(dummy_class, freeze_attributes, context):
     dummy = dummy_class("hello")
-    freeze(dummy)
-    with pytest.raises(ImmutableError):
+    freeze(dummy, freeze_attributes=freeze_attributes)
+    with context:
         dummy.value = "world"
-    assert dummy.value == "hello"
+    assert dummy.value == ("hello" if freeze_attributes else "world")
 
+@pytest.mark.parametrize(
+    ["freeze_attributes", "context"],
+    [pytest.param(freeze_attributes, context, id=f"{freeze_attributes=}")
+     for freeze_attributes, context in
+     zip((True, False), (pytest.raises(ImmutableError), contextlib.nullcontext()))])
+def test_freeze_attribute_deletion(dummy_class, freeze_attributes, context):
+    dummy = dummy_class("hello")
+    freeze(dummy, freeze_attributes=freeze_attributes)
+    with context:
+        del dummy.value
+    assert getattr(dummy, "value", None) == ("hello" if freeze_attributes else None)
 
-def test_freeze_item_assignment(dummy_class):
+@pytest.mark.parametrize(
+    ["freeze_items", "context"],
+    [pytest.param(freeze_items, context, id=f"{freeze_items=}")
+     for freeze_items, context in
+     zip((True, False), (pytest.raises(ImmutableError), contextlib.nullcontext()))])
+def test_freeze_item_assignment(dummy_class, freeze_items, context):
     dummy = dummy_class("Hi")
     assert dummy[0] == 1
     dummy[0] = 9001
     assert dummy[0] == 9001
 
-    freeze(dummy)
-    with pytest.raises(ImmutableError):
+    freeze(dummy, freeze_items=freeze_items)
+    with context:
         dummy[0] = 1
+    assert dummy[0] == (9001 if freeze_items else 1)
+
+@pytest.mark.parametrize(
+    ["freeze_items", "context"],
+    [pytest.param(freeze_items, context, id=f"{freeze_items=}")
+     for freeze_items, context in
+     zip((True, False), (pytest.raises(ImmutableError), contextlib.nullcontext()))])
+def test_freeze_item_deletion(dummy_class, freeze_items, context):
+    dummy = dummy_class("Hi")
+    assert dummy[0] == 1
+    assert dummy[1] == 2
+    dummy[0] = 9001
     assert dummy[0] == 9001
+
+    freeze(dummy, freeze_items=freeze_items)
+    with context:
+        del dummy[0]
+    assert dummy[0] == (9001 if freeze_items else 2)
 
 
 def test_freeze_item_assignment_list():
