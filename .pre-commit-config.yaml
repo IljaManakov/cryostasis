@@ -5,7 +5,7 @@ repos:
         name: Linting (Ruff)
         language: python
         entry: ruff check
-#        files: ^cryo/
+        files: ^src/cryostasis/
         types: [ file, python ]
   - repo: local
     hooks:
@@ -13,5 +13,5 @@ repos:
         name: Formating (Ruff)
         language: python
         entry: ruff format
-#        files: ^cryo/
+        files: ^src/cryostasis/
         types: [ file, python ]

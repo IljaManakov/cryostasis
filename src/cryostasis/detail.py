@@ -1,14 +1,7 @@
-from cryo._builtin_helpers import _set_class_on_builtin
-
-__all__ = ["ImmutableError", "freeze"]
-
-
 def _raise_immutable_error():
+    from . import ImmutableError
+
     raise ImmutableError("This object is immutable")
-
-
-class ImmutableError(Exception):
-    pass
 
 
 class Frozen:
@@ -90,13 +83,3 @@ def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
         frozen_type.__isub__ = lambda self, it: _raise_immutable_error()
 
     return frozen_type
-
-
-def freeze(obj: object, *, freeze_attributes=True, freeze_items=True):
-    obj_type = obj.__class__
-    frozen_type = _create_dynamic_frozen_type(obj_type, freeze_attributes, freeze_items)
-    if isinstance(obj, (list, set, dict)):
-        _set_class_on_builtin(obj, frozen_type)
-    else:
-        obj.__class__ = frozen_type
-    return obj
