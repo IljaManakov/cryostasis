@@ -1,0 +1,22 @@
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  run-tox:
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        os: [macos-latest, windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install Tox
+        run: pip install --upgrade tox setuptools
+      - name: Run Tox
+        run: tox -e py
