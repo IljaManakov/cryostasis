@@ -1,0 +1,17 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: Linting (Ruff)
+        language: python
+        entry: ruff check
+#        files: ^cryo/
+        types: [ file, python ]
+  - repo: local
+    hooks:
+      - id: ruff-format
+        name: Formating (Ruff)
+        language: python
+        entry: ruff format
+#        files: ^cryo/
+        types: [ file, python ]
