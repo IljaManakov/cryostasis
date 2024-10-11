@@ -9,9 +9,8 @@ setup(
         Extension(
             name="cryo._builtin_helpers",
             sources=["_builtin_helpers.c"],
-            include_dirs=[
-                cpython_internal_include
-            ])
+            include_dirs=[cpython_internal_include],
+        )
     ],
-    packages=find_packages()
+    packages=find_packages(),
 )

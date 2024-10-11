@@ -6,12 +6,11 @@ import pytest
 from cryo import freeze, ImmutableError
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def dummy_class():
     """Fixture that provides a simple dummy class with a value and repr."""
 
     class Dummy:
-
         def __init__(self, value):
             self.value = value
             self._list = [1, 2, 3]
@@ -37,126 +36,152 @@ def test_freeze(dummy_class):
         - Instance checks with the original class still work on the frozen object
     """
 
-    d = dummy_class('hello')
-    d2 = deepcopy(d)
-    frozen_d = freeze(d)
-    assert frozen_d is d
-    d_repr = repr(d).strip("\"\'")
-    assert d_repr != repr(d2)
-    assert d_repr.startswith('<Frozen(')
-    assert d_repr.endswith(')>')
-    assert repr(d2).strip("\"\'") == d_repr.removeprefix("<Frozen(").removesuffix(")>")
+    dummy = dummy_class("hello")
+    dummy_clone = deepcopy(dummy)
+    dummy_frozen_ref = freeze(dummy)
+    assert dummy_frozen_ref is dummy
+    dummy_repr = repr(dummy).strip("\"'")
+    assert dummy_repr != repr(dummy_clone)
+    assert dummy_repr.startswith("<Frozen(")
+    assert dummy_repr.endswith(")>")
+    assert repr(dummy_clone).strip("\"'") == dummy_repr.removeprefix(
+        "<Frozen("
+    ).removesuffix(")>")
 
-    assert isinstance(d, dummy_class)
-    assert issubclass(d.__class__, dummy_class)
+    assert isinstance(dummy, dummy_class)
+    assert issubclass(dummy.__class__, dummy_class)
 
 
 def test_freeze_attribute_assignment(dummy_class):
-
-    d = dummy_class('hello')
-    freeze(d)
+    dummy = dummy_class("hello")
+    freeze(dummy)
     with pytest.raises(ImmutableError):
-        d.value = 'world'
-    assert d.value == "hello"
+        dummy.value = "world"
+    assert dummy.value == "hello"
 
 
 def test_freeze_item_assignment(dummy_class):
-    d = dummy_class("Hi")
-    assert d[0] == 1
-    d[0] = 9001
-    assert d[0] == 9001
+    dummy = dummy_class("Hi")
+    assert dummy[0] == 1
+    dummy[0] = 9001
+    assert dummy[0] == 9001
 
-    freeze(d)
+    freeze(dummy)
     with pytest.raises(ImmutableError):
-        d[0] = 1
-    assert d[0] == 9001
+        dummy[0] = 1
+    assert dummy[0] == 9001
+
 
 def test_freeze_item_assignment_list():
+    a_list = [1, 2, 3]
+    freeze(a_list)
+    with pytest.raises(ImmutableError):
+        a_list[0] = 5
+    with pytest.raises(ImmutableError):
+        a_list.bla = 1
+    assert a_list == [1, 2, 3]
 
-    l = [1,2,3]
-    freeze(l)
-    with pytest.raises(ImmutableError):
-        l[0] = 5
-    with pytest.raises(ImmutableError):
-        l.bla = 1
-    assert l == [1,2,3]
 
 def test_freeze_item_assignment_dict():
+    a_dict = dict(a=1, b=2, c=3)
+    freeze(a_dict)
+    with pytest.raises(ImmutableError):
+        a_dict["a"] = 5
+    with pytest.raises(ImmutableError):
+        a_dict.bla = 1
+    assert a_dict == dict(a=1, b=2, c=3)
 
-    d = dict(a=1, b=2, c=3)
-    freeze(d)
-    with pytest.raises(ImmutableError):
-        d['a'] = 5
-    with pytest.raises(ImmutableError):
-        d.bla = 1
-    assert d == dict(a=1, b=2, c=3)
 
 def test_freeze_item_assignment_set():
-
-    s = {1, 2, 3}
-    freeze(s)
+    a_set = {1, 2, 3}
+    freeze(a_set)
     with pytest.raises(ImmutableError):
-        s.add(5)
+        a_set.add(5)
     with pytest.raises(ImmutableError):
-        s.bla = 1
-    assert s == {1, 2, 3}
+        a_set.bla = 1
+    assert a_set == {1, 2, 3}
 
-@pytest.mark.parametrize("method", [
-    "insert",
-    "append",
-    "clear",
-    "reverse",
-    "extend",
-    "pop",
-    "remove",
-    "__iadd__",
-    "__imul__",
-])
+
+@pytest.mark.parametrize(
+    "method",
+    [
+        "insert",
+        "append",
+        "clear",
+        "reverse",
+        "extend",
+        "pop",
+        "remove",
+        "__iadd__",
+        "__imul__",
+    ],
+)
 def test_freeze_list_mutable_methods(method):
-    l = [1, 2, 3]
-    freeze(l)
-    method = getattr(l, method)
-    args = {n: None for n, p in signature(method).parameters.items() if n != 'self' and p.kind.value != 4}
+    a_list = [1, 2, 3]
+    freeze(a_list)
+    method = getattr(a_list, method)
+    args = {
+        n: None
+        for n, p in signature(method).parameters.items()
+        if n != "self" and p.kind.value != 4
+    }
     with pytest.raises(ImmutableError):
         method(*args.values())
-    assert l == [1, 2, 3]
+    assert a_list == [1, 2, 3]
 
-@pytest.mark.parametrize("method", [
-    "pop",
-    "popitem",
-    "clear",
-    "update",
-    "setdefault",
-    "__ior__",
-])
+
+@pytest.mark.parametrize(
+    "method",
+    [
+        "pop",
+        "popitem",
+        "clear",
+        "update",
+        "setdefault",
+        "__ior__",
+    ],
+)
 def test_freeze_dict_mutable_methods(method):
-    d = dict(a=1, b=2, c=3)
-    freeze(d)
-    method = getattr(d, method)
-    args = {n: None for n, p in signature(method).parameters.items() if n != 'self' and p.kind.value != 4}
+    a_dict = dict(a=1, b=2, c=3)
+    freeze(a_dict)
+    method = getattr(a_dict, method)
+    args = {
+        n: None
+        for n, p in signature(method).parameters.items()
+        if n != "self" and p.kind.value != 4
+    }
     with pytest.raises(ImmutableError):
         method(*args.values())
-    assert d == dict(a=1, b=2, c=3)
+    assert a_dict == dict(a=1, b=2, c=3)
 
-@pytest.mark.parametrize("method", [
-    "add",
-    "discard",
-    "remove",
-    "pop",
-    "clear",
-    "__ior__",
-    "__iand__",
-    "__ixor__",
-    "__isub__",
-])
+
+@pytest.mark.parametrize(
+    "method",
+    [
+        "add",
+        "discard",
+        "remove",
+        "pop",
+        "clear",
+        "__ior__",
+        "__iand__",
+        "__ixor__",
+        "__isub__",
+    ],
+)
 def test_freeze_set_mutable_methods(method):
-    s = {1, 2, 3}
-    freeze(s)
-    method = getattr(s, method)
-    args = {n: None for n, p in signature(method).parameters.items() if n != 'self' and p.kind.value != 4}
+    a_set = {1, 2, 3}
+    freeze(a_set)
+    method = getattr(a_set, method)
+    args = {
+        n: None
+        for n, p in signature(method).parameters.items()
+        if n != "self" and p.kind.value != 4
+    }
     with pytest.raises(ImmutableError):
         method(*args.values())
-    assert s == {1, 2, 3}
+    assert a_set == {1, 2, 3}
+
 
 def test_gc_compatibility():
     l1 = []

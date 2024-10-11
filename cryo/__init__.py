@@ -6,6 +6,7 @@ __all__ = ["ImmutableError", "freeze"]
 def _raise_immutable_error():
     raise ImmutableError("This object is immutable")
 
+
 class ImmutableError(Exception):
     pass
 
@@ -38,13 +39,14 @@ class Frozen:
         else:
             return super().__delitem__(name)
 
-def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
 
+def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
     # Create new type that inherits from Frozen and the original object's type
-    frozen_type = type(f"Frozen{obj_type.__name__}",
-                       (Frozen, obj_type),
-                       {"_Frozen__freeze_attributes": fr_attr,
-                        "_Frozen__freeze_items": fr_item})
+    frozen_type = type(
+        f"Frozen{obj_type.__name__}",
+        (Frozen, obj_type),
+        {"_Frozen__freeze_attributes": fr_attr, "_Frozen__freeze_items": fr_item},
+    )
 
     # Add new __repr__ that encloses the original repr in <Frozen()>
     frozen_type.__repr__ = lambda self: f"<Frozen({obj_type.__repr__(self)})>"
@@ -69,7 +71,9 @@ def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
         frozen_type.popitem = lambda self: _raise_immutable_error()
         frozen_type.clear = lambda self: _raise_immutable_error()
         frozen_type.update = lambda self, other=(), **kwds: _raise_immutable_error()
-        frozen_type.setdefault = lambda self, key, default=None: _raise_immutable_error()
+        frozen_type.setdefault = (
+            lambda self, key, default=None: _raise_immutable_error()
+        )
         frozen_type.__ior__ = lambda self, it: _raise_immutable_error()
 
     # Deal with mutable methods of dict
