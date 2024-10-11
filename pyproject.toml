@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=74.1"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,5 +7,13 @@ name = "cryostasis"
 version = "0.0.1"
 dependencies = []
 
-[tool.setuptools.packages.find]
-exclude = ["tests"]
+[[tool.setuptools.ext-modules]]
+name = "cryostasis._builtin_helpers"
+sources = ["src/_builtin_helpers.c"]
+
+#[tool.setuptools]
+#packages = ["src/cryostasis"]
+
+#[tool.setuptools.packages.find]
+#where = ["src"]
+#exclude = ["src/cryostasis/_builtin_helpers.c"]

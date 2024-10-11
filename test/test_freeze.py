@@ -3,7 +3,7 @@ from copy import deepcopy
 from inspect import signature
 
 import pytest
-from cryo import freeze, ImmutableError
+from cryostasis import freeze, ImmutableError
 
 
 @pytest.fixture(scope="module")
