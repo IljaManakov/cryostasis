@@ -226,6 +226,7 @@ def test_freeze_set_mutable_methods(method):
 
 
 def test_gc_compatibility():
+    """Tests that gc collection of frozen builtins does not error / crash."""
     l1 = []
     l2 = [l1]
     l1.append(l2)
@@ -235,3 +236,17 @@ def test_gc_compatibility():
     gc.collect()
     del l1, l2
     assert gc.collect() == 2
+
+
+@pytest.mark.parametrize(
+    "instance",
+    [pytest.param(inst, id=inst.__class__.__name__) for inst in
+    ( 1, True, "hello", b"hello", tuple(), frozenset(), freeze([1,2,3]))]
+)
+def test_freeze_immutable(instance):
+    """Tests that `freeze` does not modify instances of already immutable types."""
+    repr_before = repr(instance)
+    class_before = instance.__class__
+    frozen_instance = freeze(instance)
+    assert repr(frozen_instance) == repr_before
+    assert frozen_instance.__class__ == class_before

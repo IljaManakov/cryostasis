@@ -83,3 +83,6 @@ def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
         frozen_type.__isub__ = lambda self, it: _raise_immutable_error()
 
     return frozen_type
+
+
+IMMUTABLE_TYPES = {int, str, bytes, bool, frozenset, tuple}
