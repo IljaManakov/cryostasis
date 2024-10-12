@@ -43,7 +43,7 @@ def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
 
     # Add new __repr__ that encloses the original repr in <Frozen()>
     frozen_type.__repr__ = (
-        lambda self: f"<Frozen({obj_type.__repr__(self).strip("()" if obj_type is set else "")})>"
+        lambda self: f"<Frozen({obj_type.__repr__(self).strip('()' if obj_type is set else '')})>"
     )
 
     # Deal with mutable methods of lists
