@@ -2,13 +2,25 @@ import weakref
 
 
 def _raise_immutable_error():
+    """Small helper for raising ImmutableError (since you cannot raise in a lambda directly."""
     from . import ImmutableError
 
     raise ImmutableError("This object is immutable")
 
 
 class Frozen:
+    """
+    Class that makes instances 'read-only' in the sense that changing or deleting attributes / items will raise an ImmutableError.
+    The class itself is not instantiated directly.
+    Rather, it is used as a base for a dynamically created type in :meth:`~cryostasis.freeze`.
+    The dynamically created type is then assigned to the to-be-frozen instances __class__.
+    Due to how Python's method resolution order (MRO) works, this effectively makes the instance read-only.
+    """
+
+    #: If True, setting or deleting attributes will raise ImmutableError
     __freeze_attributes = True
+
+    #: If True, setting or deleting items (i.e. through []-operator) will raise ImmutableError
     __freeze_items = True
 
     def __setattr__(self, name, value):
@@ -38,14 +50,25 @@ class Frozen:
 
 # Type instances are super expensive in terms of memory
 # We cache and reuse our dynamically created types to reduce the memory footprint
+# Since we don't want to unnecessarily keep types alive we store weak instead of strong references.
 _frozen_type_cache: dict[(type, bool, bool), weakref.ReferenceType[type]] = {}
 
 
 def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
+    """
+    Dynamically creates a new type that inherits from both the original type ``obj_type`` and :class:`~cryostasis.detail.Frozen`.
+    Also, modifies the ``__repr__`` of the created type to reflect that it is frozen.
+
+    Args:
+        obj_type: The original type, which will be the second base of the newly created type.
+        fr_attr: Bool indicating whether attributes of instances of the new type should be frozen. Is passed to :attr:`~cryostasis.detail.Frozen.__freeze_attributes`.
+        fr_item: Bool indicating whether items of instances of the new type should be frozen. Is passed to :attr:`~cryostasis.detail.Frozen.__freeze_items`.
+    """
+
     # Check if we already have it cached
     key = (obj_type, fr_attr, fr_item)
     if (frozen_type_ref := _frozen_type_cache.get(key, None)) is not None:
-        if frozen_type := frozen_type_ref():
+        if frozen_type := frozen_type_ref():  # check if the weakref is still alive
             return frozen_type
 
     # Create new type that inherits from Frozen and the original object's type
@@ -98,6 +121,7 @@ def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
         frozen_type.__ixor__ = lambda self, it: _raise_immutable_error()
         frozen_type.__isub__ = lambda self, it: _raise_immutable_error()
 
+    # Store newly created type in cache
     _frozen_type_cache[key] = weakref.ref(
         frozen_type, lambda _: _frozen_type_cache.pop(key)
     )
@@ -105,4 +129,5 @@ def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
     return frozen_type
 
 
+#: set of types that are already immutable and hence will be ignored by `freeze`
 IMMUTABLE_TYPES = frozenset({int, str, bytes, bool, frozenset, tuple})

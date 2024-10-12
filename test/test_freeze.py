@@ -285,6 +285,7 @@ def test_deepfreeze_infinite_recursion():
 
 
 def test_freeze_memory_consumption():
+    """Tests the caching of dynamically created types during `freeze`"""
     import psutil, os
 
     lists = [[] for _ in range(10_000)]
