@@ -13,7 +13,7 @@ jobs:
       - name: DEBUG
         run:  python -c "import os; print(os.getcwd()); print(*os.listdir(), sep='\n')"
       - name: Install Dependencies
-        run: pip install ./cryostasis[dev]
+        run:  pip install .[dev]
       - uses: pre-commit/action@v3.0.1
         with:
           extra_args: '--all-files'
