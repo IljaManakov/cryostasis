@@ -1,3 +1,6 @@
+import weakref
+
+
 def _raise_immutable_error():
     from . import ImmutableError
 
@@ -33,7 +36,18 @@ class Frozen:
             return super().__delitem__(name)
 
 
+# Type instances are super expensive in terms of memory
+# We cache and reuse our dynamically created types to reduce the memory footprint
+_frozen_type_cache: dict[(type, bool, bool), weakref.ReferenceType[type]] = {}
+
+
 def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
+    # Check if we already have it cached
+    key = (obj_type, fr_attr, fr_item)
+    if (frozen_type_ref := _frozen_type_cache.get(key, None)) is not None:
+        if frozen_type := frozen_type_ref():
+            return frozen_type
+
     # Create new type that inherits from Frozen and the original object's type
     frozen_type = type(
         f"Frozen{obj_type.__name__}" if obj_type is not set else "",
@@ -83,6 +97,10 @@ def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
         frozen_type.__iand__ = lambda self, it: _raise_immutable_error()
         frozen_type.__ixor__ = lambda self, it: _raise_immutable_error()
         frozen_type.__isub__ = lambda self, it: _raise_immutable_error()
+
+    _frozen_type_cache[key] = weakref.ref(
+        frozen_type, lambda _: _frozen_type_cache.pop(key)
+    )
 
     return frozen_type
 

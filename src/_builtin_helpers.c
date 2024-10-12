@@ -53,17 +53,17 @@ _set_class_on_builtin(PyObject *module, PyObject *args)
 	new_class_tp->tp_flags &= ~Py_TPFLAGS_MANAGED_DICT;
 #endif
 	new_class_tp->tp_dictoffset = 0;
-	PyMapping_DelItemString(new_class_tp->tp_dict, "__dict__");
 
 	new_class_tp->tp_weaklistoffset = obj_type->tp_weaklistoffset;
+
+#if PY_VERSION_HEX >= 0x030C0000
+
 	if (new_class_tp->tp_weaklistoffset == 0)
 	{
-		PyMapping_DelItemString(new_class_tp->tp_dict, "__weakref__");
-#if PY_VERSION_HEX >= 0x030C0000
 		// MANAGED_WEAKREF exists only in 3.12+
 		new_class_tp->tp_flags &= ~Py_TPFLAGS_MANAGED_WEAKREF;
-#endif
 	}
+#endif
 
 // IMMUTABLETYPE exists only in 3.10+
 #if PY_VERSION_HEX >= 0x030A0000
