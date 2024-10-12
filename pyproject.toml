@@ -7,13 +7,10 @@ name = "cryostasis"
 version = "0.0.1"
 dependencies = []
 
+[project.optional-dependencies]
+test = ["pytest", "psutil"]
+dev = ["cryostasis[test]", "build", "tox", "pytest-cov", "ruff"]
+
 [[tool.setuptools.ext-modules]]
 name = "cryostasis._builtin_helpers"
 sources = ["src/_builtin_helpers.c"]
-
-#[tool.setuptools]
-#packages = ["src/cryostasis"]
-
-#[tool.setuptools.packages.find]
-#where = ["src"]
-#exclude = ["src/cryostasis/_builtin_helpers.c"]
