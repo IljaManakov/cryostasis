@@ -36,13 +36,15 @@ class Frozen:
 def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
     # Create new type that inherits from Frozen and the original object's type
     frozen_type = type(
-        f"Frozen{obj_type.__name__}",
+        f"Frozen{obj_type.__name__}" if obj_type is not set else "",
         (Frozen, obj_type),
         {"_Frozen__freeze_attributes": fr_attr, "_Frozen__freeze_items": fr_item},
     )
 
     # Add new __repr__ that encloses the original repr in <Frozen()>
-    frozen_type.__repr__ = lambda self: f"<Frozen({obj_type.__repr__(self)})>"
+    frozen_type.__repr__ = (
+        lambda self: f"<Frozen({obj_type.__repr__(self).strip('()' if obj_type is set else '')})>"
+    )
 
     # Deal with mutable methods of lists
     # Gathered from _collections_abc.py:MutableSequence and https://docs.python.org/3/library/stdtypes.html#mutable-sequence-types
@@ -85,4 +87,4 @@ def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
     return frozen_type
 
 
-IMMUTABLE_TYPES = {int, str, bytes, bool, frozenset, tuple}
+IMMUTABLE_TYPES = frozenset({int, str, bytes, bool, frozenset, tuple})

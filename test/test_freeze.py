@@ -4,7 +4,7 @@ from copy import deepcopy
 from inspect import signature
 
 import pytest
-from cryostasis import freeze, ImmutableError
+from cryostasis import freeze, ImmutableError, deepfreeze
 
 
 @pytest.fixture(scope="module")
@@ -250,3 +250,35 @@ def test_freeze_immutable(instance):
     frozen_instance = freeze(instance)
     assert repr(frozen_instance) == repr_before
     assert frozen_instance.__class__ == class_before
+
+
+def test_deepfreeze(dummy_class):
+    """Tests that `deepfreeze` recursively freezes all attributes and items."""
+
+    modified_instance = dummy_class("hello")
+    modified_instance.a_list = [1,2,3]
+    modified_instance.a_dict = {"a": 1, "b": 2}
+    obj = {"a": {1, 2, 3}, "b": [True, modified_instance], "c": dummy_class("world")}
+    deepfreeze(obj)
+
+    with pytest.raises(ImmutableError):
+        obj['d'] = 5
+    with pytest.raises(ImmutableError):
+        obj["a"].add(5)
+    with pytest.raises(ImmutableError):
+        obj["b"].append(5)
+    with pytest.raises(ImmutableError):
+        obj["b"][-1].a_list.append(5)
+    with pytest.raises(ImmutableError):
+        obj["b"][-1].a_dict['c'] = 5
+    with pytest.raises(ImmutableError):
+        obj["b"][-1].bla = 5
+    with pytest.raises(ImmutableError):
+        obj["c"].bla = 5
+
+def test_deepfreeze_infinite_recursion():
+    """Tests that `deepfreeze` does not recurse infinitely on reference cycles."""
+    l1 = []
+    l2 = [l1]
+    l1.append(l2)
+    deepfreeze(l1)
