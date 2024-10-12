@@ -282,3 +282,18 @@ def test_deepfreeze_infinite_recursion():
     l2 = [l1]
     l1.append(l2)
     deepfreeze(l1)
+
+
+def test_freeze_memory_consumption():
+    import psutil, os
+
+    lists = [[] for _ in range(10_000)]
+    process = psutil.Process(os.getpid())
+    baseline = int(process.memory_full_info().uss / 1024**2)  # baseline process memory in MB
+    for l in lists:
+        freeze(l)
+
+    # Size of type is on the order of ~ 0.5 kB
+    # Since we freeze 10k instances, if the cache is not working, we would allocate much more than 1 MB
+    # We keep the 1MB threshold due to other fluctuations in the processes memory
+    assert abs(int(process.memory_full_info().uss / 1024**2) - baseline) <= 1
