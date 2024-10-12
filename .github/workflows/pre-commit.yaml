@@ -10,6 +10,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
+      - name: DEBUG
+        run:  python -c "import os; print(os.getcwd()); print(*os.listdir(), sep='\n')"
       - name: Install Dependencies
         run: pip install ./cryostasis[dev]
       - uses: pre-commit/action@v3.0.1
