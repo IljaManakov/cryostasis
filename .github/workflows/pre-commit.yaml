@@ -12,6 +12,8 @@ jobs:
       - uses: actions/setup-python@v5
       - name: DEBUG
         run:  python -c "import os; print(os.getcwd()); print(*os.listdir(), sep='\n')" && cat pyproject.toml
+      - name: upgrade pip
+        run:  python -m pip install --upgrade pip
       - name: Install Dependencies
         run:  pip install .[dev]
       - uses: pre-commit/action@v3.0.1
