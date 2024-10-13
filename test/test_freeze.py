@@ -1,5 +1,7 @@
 import contextlib
 import gc
+import re
+import sys
 from copy import deepcopy
 
 import pytest
@@ -16,7 +18,7 @@ def dummy_class():
             self._list = [1, 2, 3]
 
         def __repr__(self):
-            return f"Dummy('value={self.value}')"
+            return f"Dummy(value={self.value})"
 
         def __getitem__(self, item):
             return self._list[item]
@@ -67,6 +69,7 @@ def test_freeze_attribute_assignment(dummy_class, freeze_attributes, context):
         dummy.value = "world"
     assert dummy.value == ("hello" if freeze_attributes else "world")
 
+
 @pytest.mark.parametrize(
     ["freeze_attributes", "context"],
     [pytest.param(freeze_attributes, context, id=f"{freeze_attributes=}")
@@ -78,6 +81,7 @@ def test_freeze_attribute_deletion(dummy_class, freeze_attributes, context):
     with context:
         del dummy.value
     assert getattr(dummy, "value", None) == ("hello" if freeze_attributes else None)
+
 
 @pytest.mark.parametrize(
     ["freeze_items", "context"],
@@ -94,6 +98,7 @@ def test_freeze_item_assignment(dummy_class, freeze_items, context):
     with context:
         dummy[0] = 1
     assert dummy[0] == (9001 if freeze_items else 1)
+
 
 @pytest.mark.parametrize(
     ["freeze_items", "context"],
@@ -260,6 +265,7 @@ def test_deepfreeze(dummy_class):
     with pytest.raises(ImmutableError):
         obj["c"].bla = 5
 
+
 def test_deepfreeze_infinite_recursion():
     """Tests that `deepfreeze` does not recurse infinitely on reference cycles."""
     l1 = []
@@ -282,6 +288,7 @@ def test_freeze_memory_consumption():
     # Since we freeze 10k instances, if the cache is not working, we would allocate much more than 1 MB
     # We keep the 1MB threshold due to other fluctuations in the processes memory
     assert abs(int(process.memory_full_info().uss / 1024**2) - baseline) <= 1
+
 
 def test_freeze_descriptors():
     """Tests that `freeze` also works with descriptors"""
@@ -312,7 +319,9 @@ def test_freeze_descriptors():
     with pytest.raises(ImmutableError):
         dummy.descriptor = 42
 
+
 def test_freeze_with_slots():
+    """Tests that `freeze` also works if the current type has __slots__"""
 
     class DummyWithSlots:
         __slots__ = ["val"]
@@ -325,3 +334,28 @@ def test_freeze_with_slots():
     with pytest.raises(ImmutableError):
         d.val = 42
     assert d.val == 1
+
+
+@pytest.mark.parametrize(
+    ["instance", "expected", "replace"],
+    [pytest.param(inst, exp, repl, id=inst.__class__.__name__) for inst, exp, repl in
+        [
+            ([1, 2, 3], "<Frozen([1, 2, 3])>", None),
+            (dict(a=1, b=2, c=3), "<Frozen({'a': 1, 'b': 2, 'c': 3})>", None),
+            ({1,2,3}, "<Frozen({1, 2, 3})>", None),
+            (dummy_class.__pytest_wrapped__.obj()(5), "<Frozen(Dummy(value=5))>", None),
+        ]
+    ]
+    + [pytest.param(
+        type("ClassWithoutRepr",tuple(), {})(),
+        "<Frozen(<test_freeze.ClassWithoutRepr object at >)>",
+        r"0x[a-f0-9]+",
+        marks=pytest.mark.skipif(sys.platform == "win32", reason="Memory addresses are displayed differently on Win")
+    )]
+)
+def test_freeze_repr(instance, expected, replace):
+
+    repr_string = repr(freeze(instance))
+    if replace is not None:
+        repr_string = re.sub(replace, "", repr_string)
+    assert repr_string == expected

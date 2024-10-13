@@ -104,7 +104,7 @@ def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
 
     # Create new type that inherits from Frozen and the original object's type
     frozen_type = type(
-        f"Frozen{obj_type.__name__}" if obj_type is not set else "",
+        f"Frozen{obj_type.__name__}",
         (Frozen, obj_type),
         {"_Frozen__freeze_attributes": fr_attr, "_Frozen__freeze_items": fr_item}
         | ({"__slots__": []} if hasattr(obj_type, "__slots__") else {}),
@@ -112,7 +112,19 @@ def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
 
     # Add new __repr__ that encloses the original repr in <Frozen()>
     frozen_type.__repr__ = (
-        lambda self: f"<Frozen({obj_type.__repr__(self).strip('()' if obj_type is set else '')})>"
+        lambda self: "<Frozen("
+        + (
+            obj_type.__repr__(self)
+            .rstrip(
+                ")" if obj_type is set else ""
+            )  # `set` repr is weird and needs special handling
+            .replace("Frozenset(", "")
+            .replace(  # `object` repr also needs special fixing
+                f"cryostasis.detail.{self.__class__.__qualname__}",
+                f"{(base := self.__class__.__bases__[1]).__module__}.{base.__qualname__}",
+            )
+        )
+        + ")>"
     )
 
     # Deal with mutable methods of builtins
