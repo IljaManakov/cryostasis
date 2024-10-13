@@ -327,3 +327,17 @@ def test_freeze_descriptors():
         del dummy.descriptor
     with pytest.raises(ImmutableError):
         dummy.descriptor = 42
+
+def test_freeze_with_slots():
+
+    class DummyWithSlots:
+        __slots__ = ["val"]
+
+    d = DummyWithSlots()
+    d.val = 1
+    assert d.val == 1
+
+    freeze(d)
+    with pytest.raises(ImmutableError):
+        d.val = 42
+    assert d.val == 1
