@@ -298,3 +298,32 @@ def test_freeze_memory_consumption():
     # Since we freeze 10k instances, if the cache is not working, we would allocate much more than 1 MB
     # We keep the 1MB threshold due to other fluctuations in the processes memory
     assert abs(int(process.memory_full_info().uss / 1024**2) - baseline) <= 1
+
+def test_freeze_descriptors():
+    """Tests that `freeze` also works with descriptors"""
+
+    class Descriptor():
+
+        def __init__(self):
+            self.val = None
+
+        def __get__(self, instance, owner):
+            return self.val
+
+        def __set__(self, instance, value):
+            self.val = value
+
+        def __delete__(self, instance):
+            raise RuntimeError("You shall not delete me!")
+
+    class DummyWithDescriptor():
+
+        descriptor = Descriptor()
+
+    dummy = DummyWithDescriptor()
+    dummy.descriptor = 1
+    freeze(dummy)
+    with pytest.raises(ImmutableError):
+        del dummy.descriptor
+    with pytest.raises(ImmutableError):
+        dummy.descriptor = 42
