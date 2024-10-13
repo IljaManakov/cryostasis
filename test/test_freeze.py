@@ -1,7 +1,6 @@
 import contextlib
 import gc
 from copy import deepcopy
-from inspect import signature
 
 import pytest
 from cryostasis import freeze, ImmutableError, deepfreeze
@@ -162,13 +161,8 @@ def test_freeze_list_mutable_methods(method):
     a_list = [1, 2, 3]
     freeze(a_list)
     method = getattr(a_list, method)
-    args = {
-        n: None
-        for n, p in signature(method).parameters.items()
-        if n != "self" and p.kind.value != 4
-    }
     with pytest.raises(ImmutableError):
-        method(*args.values())
+        method()
     assert a_list == [1, 2, 3]
 
 
@@ -187,13 +181,8 @@ def test_freeze_dict_mutable_methods(method):
     a_dict = dict(a=1, b=2, c=3)
     freeze(a_dict)
     method = getattr(a_dict, method)
-    args = {
-        n: None
-        for n, p in signature(method).parameters.items()
-        if n != "self" and p.kind.value != 4
-    }
     with pytest.raises(ImmutableError):
-        method(*args.values())
+        method()
     assert a_dict == dict(a=1, b=2, c=3)
 
 
@@ -215,13 +204,8 @@ def test_freeze_set_mutable_methods(method):
     a_set = {1, 2, 3}
     freeze(a_set)
     method = getattr(a_set, method)
-    args = {
-        n: None
-        for n, p in signature(method).parameters.items()
-        if n != "self" and p.kind.value != 4
-    }
     with pytest.raises(ImmutableError):
-        method(*args.values())
+        method()
     assert a_set == {1, 2, 3}
 
 

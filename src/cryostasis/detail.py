@@ -1,8 +1,9 @@
 import weakref
+from functools import wraps
 
 
-def _raise_immutable_error():
-    """Small helper for raising ImmutableError (since you cannot raise in a lambda directly."""
+def _raise_immutable_error(*args, **kwargs):
+    """Small helper for raising ImmutableError. This function is also used as a substitute for mutable methods on builtins."""
     from . import ImmutableError
 
     raise ImmutableError("This object is immutable")
@@ -48,6 +49,36 @@ class Frozen:
             return super().__delitem__(name)
 
 
+_mutable_methods = {
+    # Gathered from _collections_abc.py:MutableSequence and https://docs.python.org/3/library/stdtypes.html#mutable-sequence-types
+    list: [
+        "insert",
+        "append",
+        "clear",
+        "reverse",
+        "extend",
+        "pop",
+        "remove",
+        "__iadd__",
+        "__imul__",
+    ],
+    # Gathered from _collections_abc.py:MutableMapping and https://docs.python.org/3/library/stdtypes.html#mapping-types-dict
+    dict: ["pop", "popitem", "clear", "update", "setdefault", "__ior__"],
+    # Gathered from _collections_abc.py:MutableSet and https://docs.python.org/3/library/stdtypes.html#set-types-set-frozenset
+    set: [
+        "add",
+        "discard",
+        "remove",
+        "pop",
+        "clear",
+        "__ior__",
+        "__iand__",
+        "__ixor__",
+        "__isub__",
+    ],
+}
+
+
 # Type instances are super expensive in terms of memory
 # We cache and reuse our dynamically created types to reduce the memory footprint
 # Since we don't want to unnecessarily keep types alive we store weak instead of strong references.
@@ -84,43 +115,12 @@ def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
         lambda self: f"<Frozen({obj_type.__repr__(self).strip('()' if obj_type is set else '')})>"
     )
 
-    # Deal with mutable methods of lists
-    # Gathered from _collections_abc.py:MutableSequence and https://docs.python.org/3/library/stdtypes.html#mutable-sequence-types
-    if issubclass(obj_type, list):
-        frozen_type.insert = lambda self, i, x: _raise_immutable_error()
-        frozen_type.append = lambda self, x: _raise_immutable_error()
-        frozen_type.clear = lambda self, x: _raise_immutable_error()
-        frozen_type.reverse = lambda self: _raise_immutable_error()
-        frozen_type.extend = lambda self, x: _raise_immutable_error()
-        frozen_type.pop = lambda self, x=None: _raise_immutable_error()
-        frozen_type.remove = lambda self, x: _raise_immutable_error()
-        frozen_type.__iadd__ = lambda self, x: _raise_immutable_error()
-        frozen_type.__imul__ = lambda self, x: _raise_immutable_error()
-
-    # Deal with mutable methods of dict
-    # Gathered from _collections_abc.py:MutableMapping and https://docs.python.org/3/library/stdtypes.html#mapping-types-dict
-    if issubclass(obj_type, dict):
-        frozen_type.pop = lambda self, key, default=None: _raise_immutable_error()
-        frozen_type.popitem = lambda self: _raise_immutable_error()
-        frozen_type.clear = lambda self: _raise_immutable_error()
-        frozen_type.update = lambda self, other=(), **kwds: _raise_immutable_error()
-        frozen_type.setdefault = (
-            lambda self, key, default=None: _raise_immutable_error()
-        )
-        frozen_type.__ior__ = lambda self, it: _raise_immutable_error()
-
-    # Deal with mutable methods of dict
-    # Gathered from _collections_abc.py:MutableSet and https://docs.python.org/3/library/stdtypes.html#set-types-set-frozenset
-    if issubclass(obj_type, set):
-        frozen_type.add = lambda self, value: _raise_immutable_error()
-        frozen_type.discard = lambda self, value: _raise_immutable_error()
-        frozen_type.remove = lambda self, value: _raise_immutable_error()
-        frozen_type.pop = lambda self: _raise_immutable_error()
-        frozen_type.clear = lambda self: _raise_immutable_error()
-        frozen_type.__ior__ = lambda self, it: _raise_immutable_error()
-        frozen_type.__iand__ = lambda self, it: _raise_immutable_error()
-        frozen_type.__ixor__ = lambda self, it: _raise_immutable_error()
-        frozen_type.__isub__ = lambda self, it: _raise_immutable_error()
+    # Deal with mutable methods of builtins
+    for container_type, methods in _mutable_methods.items():
+        if issubclass(obj_type, container_type):
+            for method in methods:
+                substitute = wraps(getattr(obj_type, method))(_raise_immutable_error)
+                setattr(frozen_type, method, substitute)
 
     # Store newly created type in cache
     _frozen_type_cache[key] = weakref.ref(
