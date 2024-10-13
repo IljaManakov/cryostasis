@@ -75,7 +75,8 @@ def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
     frozen_type = type(
         f"Frozen{obj_type.__name__}" if obj_type is not set else "",
         (Frozen, obj_type),
-        {"_Frozen__freeze_attributes": fr_attr, "_Frozen__freeze_items": fr_item},
+        {"_Frozen__freeze_attributes": fr_attr, "_Frozen__freeze_items": fr_item}
+        | ({"__slots__": []} if hasattr(obj_type, "__slots__") else {}),
     )
 
     # Add new __repr__ that encloses the original repr in <Frozen()>
