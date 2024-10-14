@@ -1,5 +1,8 @@
 import weakref
 from functools import wraps
+from typing import TypeVar, Callable
+
+Instance = TypeVar("Instance", bound=object)
 
 
 def _raise_immutable_error(*args, **kwargs):
@@ -23,6 +26,11 @@ class Frozen:
 
     #: If True, setting or deleting items (i.e. through []-operator) will raise ImmutableError
     __freeze_items = True
+
+    def __init__(self):
+        raise NotImplementedError(
+            "Frozen is an implementation detail and should never be instantiated."
+        )
 
     def __setattr__(self, name, value):
         if self.__freeze_attributes:
@@ -140,6 +148,50 @@ def _create_dynamic_frozen_type(obj_type: type, fr_attr: bool, fr_item: bool):
     )
 
     return frozen_type
+
+
+def _traverse_and_apply(obj: Instance, func: Callable[[Instance], Instance]):
+    from itertools import chain
+
+    # set for keeping id's of seen instances
+    # we only keep the id's because some instances might not be hashable
+    # also we don't want to hold refs to the instances here and weakref is not supported by all types
+    seen_instances: set[int] = set()
+
+    def _traverse_and_apply_impl(obj: Instance):
+        if id(obj) not in seen_instances:
+            seen_instances.add(id(obj))
+        else:
+            return obj
+
+        func(obj)
+
+        # freeze all attributes
+        try:
+            attr_iterator = vars(obj).values()
+        except TypeError:
+            pass
+        else:
+            for attr in attr_iterator:
+                _traverse_and_apply_impl(attr)
+
+        if isinstance(obj, str):
+            return obj
+
+        # freeze all items
+        try:
+            item_iterator = iter(obj)
+            if isinstance(obj, dict):
+                item_iterator = chain(item_iterator, obj.values())
+        except TypeError:
+            pass
+        else:
+            for item in item_iterator:
+                _traverse_and_apply_impl(item)
+
+        return obj
+
+    return _traverse_and_apply_impl(obj)
 
 
 #: set of types that are already immutable and hence will be ignored by `freeze`

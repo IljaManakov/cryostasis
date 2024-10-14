@@ -1,15 +1,12 @@
 __all__ = ["ImmutableError", "freeze", "deepfreeze"]
 
-from typing import TypeVar
+from .detail import Instance
 
 
 class ImmutableError(Exception):
     """Error indicating that you attempted to modify a frozen instance."""
 
     pass
-
-
-Instance = TypeVar("Instance", bound=object)
 
 
 def freeze(
@@ -93,48 +90,79 @@ def deepfreeze(
         >>> d.value[0] = 42             # raises ImmutableError
         >>> d.a_dict['c'].append(0)     # raises ImmutableError
     """
+    from .detail import _traverse_and_apply
+    from functools import partial
 
-    from itertools import chain
+    return _traverse_and_apply(
+        obj,
+        partial(freeze, freeze_attributes=freeze_attributes, freeze_items=freeze_items),
+    )
 
-    # set for keeping id's of seen instances
-    # we only keep the id's because some instances might not be hashable
-    # also we don't want to hold refs to the instances here and weakref is not supported by all types
-    seen_instances: set[int] = set()
 
-    def _deepfreeze(obj, freeze_attributes, freeze_items):
-        if id(obj) not in seen_instances:
-            seen_instances.add(id(obj))
-        else:
-            return obj
+def thaw(obj: Instance) -> Instance:
+    """
+    Undoes the freezing on an instance.
+    The instance will become mutable again afterward.
 
-        freeze(obj, freeze_attributes=freeze_attributes, freeze_items=freeze_items)
+    Args:
+        obj: The object to make mutable again.
 
-        # freeze all attributes
-        try:
-            attr_iterator = vars(obj).values()
-        except TypeError:
-            pass
-        else:
-            for attr in attr_iterator:
-                _deepfreeze(attr, freeze_attributes, freeze_items)
+    Returns:
+        A new reference to the thawed instance. The thawing itself happens in-place. The returned reference is just for convenience.
+    """
+    from .detail import IMMUTABLE_TYPES, Frozen
+    from ._builtin_helpers import _set_class_on_builtin_or_slots
 
-        if isinstance(obj, str):
-            return obj
+    obj_type = obj.__class__
+    bases = obj_type.__bases__
 
-        # freeze all items
-        try:
-            item_iterator = iter(obj)
-            if isinstance(obj, dict):
-                item_iterator = chain(item_iterator, obj.values())
-        except TypeError:
-            pass
-        else:
-            for item in item_iterator:
-                _deepfreeze(item, freeze_attributes, freeze_items)
+    if obj_type in IMMUTABLE_TYPES:
+        return obj  # Nothing to do here
 
+    if bases[0] is not Frozen:
+        import warnings
+
+        warnings.warn(f"Attempting to thaw a non-frozen instance {obj}.")
         return obj
 
-    return _deepfreeze(obj, freeze_attributes, freeze_items)
+    initial_type = obj_type.__bases__[1]
+    if isinstance(obj, (list, set, dict)) or hasattr(obj_type, "__slots__"):
+        _set_class_on_builtin_or_slots(obj, initial_type)
+    else:
+        object.__setattr__(obj, "__class__", initial_type)
+
+    return obj
 
 
-del TypeVar, Instance
+def deepthaw(obj: Instance) -> Instance:
+    """
+    Undoes the freezing on an instance and all of its attributes and items recursively.
+    The instance and any object that can be reached from its attributes or items will become mutable again afterward.
+
+    Args:
+        obj: The object to deep-thaw.
+
+    Returns:
+        A new reference to the deep-thawed instance. The thawing itself happens in-place. The returned reference is just for convenience.
+    """
+    from .detail import _traverse_and_apply
+
+    return _traverse_and_apply(obj, thaw)
+
+
+def is_frozen(obj: Instance) -> bool:
+    """
+    Check that indicates whether an object is frozen or not.
+
+    Args:
+        obj: The object to check.
+
+    Returns:
+        True if the object is frozen, False otherwise.
+    """
+    from .detail import Frozen
+
+    return isinstance(obj, Frozen)
+
+
+del Instance
