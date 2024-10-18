@@ -40,5 +40,5 @@ jobs:
         run: auditwheel repair dist/*.whl
       - uses: actions/cache@v4
         with:
-          key: $ubuntu-latest-${{ matrix.python-version }}
+          key: ubuntu-latest-${{ matrix.python-version }}
           path: wheelhouse/*.whl
