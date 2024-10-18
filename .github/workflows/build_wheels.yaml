@@ -23,11 +23,12 @@ jobs:
         run: python -m build
       - uses: actions/cache@v4
         with:
-          key: ${{ matrix.os }}-${{ matrix.python-verions }}
+          key: ${{ matrix.os }}-${{ matrix.python-verion }}
           path: dist/*.whl
 
   build-linux:
     strategy:
+      matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
     runs-on: ubuntu-latest
     container: quay.io/pypa/manylinux_2_28_x86_64
@@ -39,5 +40,5 @@ jobs:
         run: auditwheel repair dist/*.whl
       - uses: actions/cache@v4
         with:
-          key: $ubuntu-latest-${{ matrix.python-versions }}
+          key: $ubuntu-latest-${{ matrix.python-version }}
           path: wheelhouse/*.whl
