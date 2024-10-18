@@ -1,0 +1,42 @@
+on:
+  release:
+    types:
+      - published
+
+jobs:
+
+  build-windows-and-macos:
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install build Module
+        run: pip install --upgrade build setuptools
+      - name: Build Wheel
+        run: python -m build
+      - uses: actions/cache@v4
+        with:
+          key: ${{ matrix.os }}-${{ matrix.python-verions }}
+          path: dist/*.whl
+
+  build-linux:
+    strategy:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    runs-on: ubuntu-latest
+    container: quay.io/pypa/manylinux_2_28_x86_64
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Wheel
+        run: python${{ matrix.python-version }} -m build
+      - name: Run Auditwheel
+        run: auditwheel repair dist/*.whl
+      - uses: actions/cache@v4
+        with:
+          key: $ubuntu-latest-${{ matrix.python-verions }}
+          path: wheelhouse/*.whl
