@@ -57,5 +57,7 @@ jobs:
         with:
           name: ${{ matrix.os }}-${{ matrix.python-version }}
           path: wheel/
-      - name: Upload Wheel
-        run: ls -lha wheel/
+      - name: Install twine
+        run: python3 -m pip install twine
+      - name: Upload wheel
+        run: python3 -m twine upload wheel/*
