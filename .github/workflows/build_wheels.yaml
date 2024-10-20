@@ -21,13 +21,14 @@ jobs:
         run: pip install --upgrade build setuptools
       - name: Build Wheel
         run: python -m build
-      - uses: actions/cache@v4
+      - uses: actions/upload-artifact@v4
         with:
-          key: ${{ matrix.os }}-${{ matrix.python-verions }}
+          name: ${{ matrix.os }}-${{ matrix.python-version }}
           path: dist/*.whl
 
   build-linux:
     strategy:
+      matrix:
         python-version: ["3.9", "3.10", "3.11", "3.12"]
     runs-on: ubuntu-latest
     container: quay.io/pypa/manylinux_2_28_x86_64
@@ -37,7 +38,26 @@ jobs:
         run: python${{ matrix.python-version }} -m build
       - name: Run Auditwheel
         run: auditwheel repair dist/*.whl
-      - uses: actions/cache@v4
+      - uses: actions/upload-artifact@v4
         with:
-          key: $ubuntu-latest-${{ matrix.python-verions }}
+          name: ubuntu-latest-${{ matrix.python-version }}
           path: wheelhouse/*.whl
+
+  upload-wheels:
+    needs: [build-windows-and-macos, build-linux]
+    permissions:
+      id-token: write
+    strategy:
+      matrix:
+        python-version: [ "3.9", "3.10", "3.11", "3.12" ]
+        os: [ macos-latest, windows-latest, ubuntu-latest ]
+    runs-on: ubuntu-latest
+#    container: quay.io/pypa/manylinux_2_28_x86_64
+    steps:
+      - name: Get Wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.os }}-${{ matrix.python-version }}
+          path: dist/
+      - name: Upload wheel
+        uses: pypa/gh-action-pypi-publish@release/v1

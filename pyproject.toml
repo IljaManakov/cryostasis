@@ -4,12 +4,35 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cryostasis"
-version = "0.0.1"
+authors = [{name="Ilja Manakov", email="ilja.manakov@gmx.de"}]
 dependencies = []
+dynamic = ["version"]
+readme = "README.md"
+license = {text = "MIT License"}
+keywords = ["static", "dataclasses", "frozen", "constant", "const"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Topic :: Software Development",
+]
+
+[project.urls]
+Homepage = "https://github.com/IljaManakov/cryostasis"
+Issues = "https://github.com/IljaManakov/cryostasis/issues"
 
 [project.optional-dependencies]
 test = ["pytest", "psutil"]
 dev = ["cryostasis[test]", "build", "tox", "pytest-cov", "ruff"]
+
+[tool.setuptools.dynamic]
+version = {file = "src/cryostasis/version.txt"}
 
 [[tool.setuptools.ext-modules]]
 name = "cryostasis._builtin_helpers"
