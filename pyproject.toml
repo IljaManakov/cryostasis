@@ -23,6 +23,10 @@ classifiers = [
     "Topic :: Software Development",
 ]
 
+[project.urls]
+Homepage = "https://github.com/IljaManakov/cryostasis"
+Issues = "https://github.com/IljaManakov/cryostasis/issues"
+
 [project.optional-dependencies]
 test = ["pytest", "psutil"]
 dev = ["cryostasis[test]", "build", "tox", "pytest-cov", "ruff"]
