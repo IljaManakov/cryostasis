@@ -45,6 +45,8 @@ jobs:
 
   upload-wheels:
     needs: [build-windows-and-macos, build-linux]
+    permissions:
+      id-token: write
     strategy:
       matrix:
         python-version: [ "3.9", "3.10", "3.11", "3.12" ]
@@ -56,8 +58,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: ${{ matrix.os }}-${{ matrix.python-version }}
-          path: wheel/
-      - name: Install twine
-        run: python3 -m pip install twine
+          path: dist/
       - name: Upload wheel
-        run: python3 -m twine upload wheel/*
+        uses: pypa/gh-action-pypi-publish@release/v1
