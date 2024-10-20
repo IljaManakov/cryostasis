@@ -42,3 +42,19 @@ jobs:
         with:
           key: ubuntu-latest-${{ matrix.python-version }}
           path: wheelhouse/*.whl
+
+  upload-wheels:
+    strategy:
+      matrix:
+        python-version: [ "3.9", "3.10", "3.11", "3.12" ]
+        os: [ macos-latest, windows-latest, ubuntu-latest ]
+    runs-on: ubuntu-latest
+#    container: quay.io/pypa/manylinux_2_28_x86_64
+    steps:
+      - name: Get Wheel
+        uses: actions/cache@v4
+        with:
+          key: ${{ matrix.os }}-${{ matrix.python-version }}
+          path: wheel/
+      - name: Upload Wheel
+        run: ls -lha wheel/
