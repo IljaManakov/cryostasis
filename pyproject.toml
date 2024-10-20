@@ -28,7 +28,7 @@ test = ["pytest", "psutil"]
 dev = ["cryostasis[test]", "build", "tox", "pytest-cov", "ruff"]
 
 [tool.setuptools.dynamic]
-version = {attr = "cryostasis.__version__"}
+version = {file = "src/cryostasis/version.txt"}
 
 [[tool.setuptools.ext-modules]]
 name = "cryostasis._builtin_helpers"
