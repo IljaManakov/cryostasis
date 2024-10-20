@@ -1,4 +1,4 @@
-# :snowflake: cryostasis :snowflake: -- Freeze arbitrary Python objects
+# ❄️ cryostasis ❄️ -- Freeze arbitrary Python objects
 
 
 ## Summary
