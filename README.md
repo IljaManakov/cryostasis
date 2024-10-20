@@ -5,15 +5,15 @@
 
 `cryostasis` is a package that allows to turn arbitrary Python objects immutable.
 The package is very lightweight and does not have any dependencies.
-To this end, it offers the `freeze` and `deepfreeze` functions.
-When an object is frozen any modification to its attributes or items (i.e. assignmend or deletion using the []-operator) will raise an `ImmutableError`.
+It offers the `freeze` and `deepfreeze` functions.
+When an object is frozen any modification to its attributes or items (i.e. assignment or deletion using the []-operator) will raise an `ImmutableError`.
 All existing attributes, methods and items will still be accessible on the frozen instance though.
 
 You can think of using `cryostasis.freeze` as a more thorough variant of `dataclass(frozen=True)`:
 - unlike the `dataclass` decorator, `freeze` can also be used on instances of builtin types such as lists or dictionaries
 - also unlike the `dataclass`decorator, `deepfreeze` will freeze the instance and all of its attributes and items recursively
 
-On the subject of `dataclasses`, you can also freeze them using `cryostasis.freeze`, which can alleviate some pain points when using `dataclass(frozen=True)` with `__post_init__`.
+Frozen instances can be reverted back to their original state using the `thaw` and `deepthaw` functions.
 
 ## Use Cases
 
