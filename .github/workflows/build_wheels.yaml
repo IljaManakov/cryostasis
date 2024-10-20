@@ -44,6 +44,7 @@ jobs:
           path: wheelhouse/*.whl
 
   upload-wheels:
+    needs: [build-windows-and-macos, build-linux]
     strategy:
       matrix:
         python-version: [ "3.9", "3.10", "3.11", "3.12" ]
