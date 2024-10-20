@@ -1,6 +1,10 @@
-__all__ = ["ImmutableError", "freeze", "deepfreeze"]
-
 from .detail import Instance
+from pathlib import Path
+
+__version__ = open(Path(__file__).parent / "version.txt").read()
+del Path
+
+__all__ = ["ImmutableError", "freeze", "deepfreeze"]
 
 
 class ImmutableError(Exception):
