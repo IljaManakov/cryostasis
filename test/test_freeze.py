@@ -1,21 +1,27 @@
 import contextlib
+import enum
 import gc
 import re
-import sys
+import types
 from copy import deepcopy
 
 import pytest
-from cryostasis import freeze, ImmutableError, deepfreeze
+from cryostasis import freeze, ImmutableError, deepfreeze, thaw, is_frozen, deepthaw
 
 
 @pytest.fixture(scope="module")
 def dummy_class():
     """Fixture that provides a simple dummy class with a value and repr."""
+    class Color(enum.Enum):
+        RED = 1
+        GREEN = 2
+        BLUE = 3
 
     class Dummy:
         def __init__(self, value):
             self.value = value
             self._list = [1, 2, 3]
+            self.color = Color.RED
 
         def __repr__(self):
             return f"Dummy(value={self.value})"
@@ -28,6 +34,9 @@ def dummy_class():
 
         def __delitem__(self, key):
             del self._list[key]
+
+        def my_method(self):
+            pass
 
     return Dummy
 
@@ -214,6 +223,18 @@ def test_freeze_set_mutable_methods(method):
     assert a_set == {1, 2, 3}
 
 
+def test_thaw():
+    a_list = [1, 2, 3]
+    cycled_list = thaw(freeze(a_list))
+    assert cycled_list is a_list
+    assert not is_frozen(cycled_list)
+    a_list[0] = 5
+    a_list.append(9001)
+    assert a_list == [5, 2, 3, 9001]
+    assert thaw(a_list) is a_list
+
+
+
 def test_gc_compatibility():
     """Tests that gc collection of frozen builtins does not error / crash."""
     l1 = []
@@ -230,7 +251,7 @@ def test_gc_compatibility():
 @pytest.mark.parametrize(
     "instance",
     [pytest.param(inst, id=inst.__class__.__name__) for inst in
-    ( 1, True, "hello", b"hello", tuple(), frozenset(), freeze([1,2,3]))]
+    ( 1, True, "hello", b"hello", tuple(), frozenset(), freeze([1,2,3]), None)]
 )
 def test_freeze_immutable(instance):
     """Tests that `freeze` does not modify instances of already immutable types."""
@@ -241,13 +262,36 @@ def test_freeze_immutable(instance):
     assert frozen_instance.__class__ == class_before
 
 
-def test_deepfreeze(dummy_class):
-    """Tests that `deepfreeze` recursively freezes all attributes and items."""
+def test_freeze_classdecorator():
+    @freeze
+    class A:
+        MY_CONSTANT = 1
+        def __getitem__(self, item):
+            return self.MY_CONSTANT
+
+    assert is_frozen(A)
+
+    with pytest.raises(ImmutableError):
+        A.MY_CONSTANT = 9001
+
+    with pytest.raises(ImmutableError):
+        A.new_method = lambda self: print("Nice!")
+
+
+def test_deepfreeze_deepthaw(dummy_class):
+    """Tests that `deepfreeze` recursively freezes and `deepthaw` recursively unfreezes all attributes and items."""
 
     modified_instance = dummy_class("hello")
     modified_instance.a_list = [1,2,3]
     modified_instance.a_dict = {"a": 1, "b": 2}
-    obj = {"a": {1, 2, 3}, "b": [True, modified_instance], "c": dummy_class("world")}
+    obj = {
+        "a": {1, 2, 3},
+        "b": [True, modified_instance],
+        "c": dummy_class("world"),
+        "d": dummy_class,
+        "f": dummy_class.__dict__,
+        "g": types.SimpleNamespace(),
+    }
     deepfreeze(obj)
 
     with pytest.raises(ImmutableError):
@@ -264,6 +308,16 @@ def test_deepfreeze(dummy_class):
         obj["b"][-1].bla = 5
     with pytest.raises(ImmutableError):
         obj["c"].bla = 5
+
+    deepthaw(obj)
+
+    obj['d'] = 5
+    obj["a"].add(5)
+    obj["b"][-1].a_list.append(5)
+    obj["b"][-1].a_dict['c'] = 5
+    obj["b"][-1].bla = 5
+    obj["b"].append(5)
+    obj["c"].bla = 5
 
 
 def test_deepfreeze_infinite_recursion():
@@ -336,26 +390,99 @@ def test_freeze_with_slots():
     assert d.val == 1
 
 
+def test_freeze_enums():
+    """This only tests that ``freeze`` does not fail on enums. Enums are not actually being frozen"""
+    class TestEnum(enum.Enum):
+        RED = "red"
+        BLUE = "blue"
+        GREEN = "green"
+
+    TestEnum.flag = True
+    TestEnum.RED.rgb = (255, 0, 0)
+    with pytest.warns(RuntimeWarning, match= "Skipping"):
+        freeze(TestEnum.RED)
+    with pytest.warns(RuntimeWarning, match= "Skipping"):
+        freeze(TestEnum)
+
+
+def test_freeze_function():
+    def func():
+        return True
+
+    func.bla = 10
+    assert func.bla == 10
+
+    ffunc = freeze(func)
+    assert ffunc is func
+    assert is_frozen(func)
+
+    with pytest.raises(ImmutableError):
+        func.bla = 11
+    assert func.bla == 10
+
+    with pytest.raises(ImmutableError):
+        func.new_attr = 10
+    assert not hasattr(func, "new_attr")
+
+    thaw(func)
+    assert not is_frozen(func)
+    func.bla = 11
+    assert func.bla == 11
+
+
+def test_freeze_class():
+    class TestClass:
+        over = 9000
+
+        def method(self):
+            return "method"
+
+        @staticmethod
+        def staticmethod():
+            return "staticmethod"
+
+    freeze(TestClass)
+    with pytest.raises(ImmutableError):
+        TestClass.new_attr = 10
+    with pytest.raises(ImmutableError):
+        TestClass.over = 10
+    assert TestClass.over == 9000
+
+    instance = TestClass()
+    assert instance is not None
+    instance.over = 10
+    assert TestClass.over == 9000
+    instance.new_attr = 10
+    assert instance.new_attr == 10
+
+    thaw(TestClass)
+    TestClass.over = 9001
+    assert TestClass.over == 9001
+
+
 @pytest.mark.parametrize(
-    ["instance", "expected", "replace"],
-    [pytest.param(inst, exp, repl, id=inst.__class__.__name__) for inst, exp, repl in
+    ["instance", "expected"],
+    [pytest.param(inst, exp, id=inst.__class__.__name__) for inst, exp in
         [
-            ([1, 2, 3], "<Frozen([1, 2, 3])>", None),
-            (dict(a=1, b=2, c=3), "<Frozen({'a': 1, 'b': 2, 'c': 3})>", None),
-            ({1,2,3}, "<Frozen({1, 2, 3})>", None),
-            (dummy_class.__pytest_wrapped__.obj()(5), "<Frozen(Dummy(value=5))>", None),
+            ([1, 2, 3], "<Frozen([1, 2, 3])>"),
+            (dict(a=1, b=2, c=3), "<Frozen({'a': 1, 'b': 2, 'c': 3})>"),
+            ({1,2,3}, "<Frozen({1, 2, 3})>"),
+            (dummy_class.__pytest_wrapped__.obj()(5), "<Frozen(Dummy(value=5))>"),
+            (dummy_class.__pytest_wrapped__.obj(), "<Frozen(<class 'test_freeze.dummy_class.<locals>.Dummy'>)>"),
+            (lambda: None, "<Frozen(<function <lambda> at ...>)>"),
+            (type("ClassWithoutRepr",tuple(), {})(), "<Frozen(<test_freeze.ClassWithoutRepr object at ...>)>"),
         ]
     ]
-    + [pytest.param(
-        type("ClassWithoutRepr",tuple(), {})(),
-        "<Frozen(<test_freeze.ClassWithoutRepr object at >)>",
-        r"0x[a-f0-9]+",
-        marks=pytest.mark.skipif(sys.platform == "win32", reason="Memory addresses are displayed differently on Win")
-    )]
 )
-def test_freeze_repr(instance, expected, replace):
+def test_freeze_repr(instance, expected):
 
     repr_string = repr(freeze(instance))
-    if replace is not None:
-        repr_string = re.sub(replace, "", repr_string)
-    assert repr_string == expected
+    expected = re.escape(expected).replace(re.escape("..."), ".*")
+    thaw(instance)
+    assert re.match(expected, repr_string)
+
+
+def test_frozen_not_constructible():
+    from cryostasis.detail import Frozen
+    with pytest.raises(NotImplementedError):
+        Frozen()
