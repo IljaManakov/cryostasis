@@ -35,20 +35,20 @@ _set_class_on_builtin_or_slots(PyObject* module, PyObject* args)
     PyTypeObject* obj_type = Py_TYPE(object);
     PyTypeObject* new_class_tp = (PyTypeObject*)new_class;
 
-    bool is_builtin_container = PyType_IsSubtype(obj_type, &PyList_Type) ||
-    	PyType_IsSubtype(obj_type, &PyDict_Type) ||
-    	PyType_IsSubtype(obj_type, &PySet_Type);
+//    bool is_builtin_container = PyType_IsSubtype(obj_type, &PyList_Type) ||
+//    	PyType_IsSubtype(obj_type, &PyDict_Type) ||
+//    	PyType_IsSubtype(obj_type, &PySet_Type);
+//    bool has_slots = PyMapping_HasKeyString(obj_type->tp_dict, "__slots__");
+//    bool is_function = PyFunction_Check(object) || PyMapping_HasKeyString(obj_type->tp_dict, "__original_function__");
+//	bool is_type = PyType_Check(object);
 
-    bool has_slots = PyMapping_HasKeyString(obj_type->tp_dict, "__slots__");
-
-    // This should only work on lists, dicts or sets or have slots
-    if (!is_builtin_container && !has_slots)
-    {
-    	PyErr_Format(PyExc_TypeError,
-          "_set_class_on_builtin_or_slots can only be called on mutable container types (list, set, dict) or types with __slots__. Got '%s'",
-          object->ob_type->tp_name);
-    	return NULL;
-    }
+//    if (!is_builtin_container && !has_slots && !is_type && !is_function)
+//    {
+//    	PyErr_Format(PyExc_TypeError,
+//          "_set_class_on_builtin_or_slots can only be called on mutable container types (list, set, dict), objects with __slots__, types or functions. Got '%s'",
+//          object->ob_type->tp_name);
+//    	return NULL;
+//    }
 
     // reflect instance dict and weaklist behavior onto new_type.
     // we need to do this to avoid segfaults in attribute lookup / deallocation
@@ -58,18 +58,21 @@ _set_class_on_builtin_or_slots(PyObject* module, PyObject* args)
 	new_class_tp->tp_weaklistoffset = obj_type->tp_weaklistoffset;
 
 #if PY_VERSION_HEX >= 0x030B0000
-	// MANAGED_WEAKREF exists only in 3.11+
-	if (new_class_tp->tp_dictoffset == 0)
-	{
-		new_class_tp->tp_flags &= ~Py_TPFLAGS_MANAGED_DICT;
-	}
+	// MANAGED_DICT exists only in 3.11+
+	if (obj_type->tp_flags & Py_TPFLAGS_MANAGED_DICT) {
+        new_class_tp->tp_flags |= Py_TPFLAGS_MANAGED_DICT;
+    } else {
+        new_class_tp->tp_flags &= ~Py_TPFLAGS_MANAGED_DICT;
+    }
+
 #endif
 #if PY_VERSION_HEX >= 0x030C0000
 	// MANAGED_WEAKREF exists only in 3.12+
-	if (new_class_tp->tp_weaklistoffset == 0)
-	{
-		new_class_tp->tp_flags &= ~Py_TPFLAGS_MANAGED_WEAKREF;
-	}
+	if (obj_type->tp_flags & Py_TPFLAGS_MANAGED_WEAKREF) {
+        new_class_tp->tp_flags |= Py_TPFLAGS_MANAGED_WEAKREF;
+    } else {
+        new_class_tp->tp_flags &= ~Py_TPFLAGS_MANAGED_WEAKREF;
+    }
 #endif
 
 // IMMUTABLETYPE exists only in 3.10+

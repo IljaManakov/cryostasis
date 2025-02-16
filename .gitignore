@@ -1,0 +1,9 @@
+/test/htmlcov/
+/test/.coverage
+/src/cryostasis/_builtin_helpers.cpython-3*-x86_64-linux-gnu.so
+/.tox/
+/build/
+/dist/
+/.venv/
+/src/cryostasis.egg-info/
+/.idea/

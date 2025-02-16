@@ -1,10 +1,37 @@
-from .detail import Instance
+import warnings
+from types import FunctionType
+
+from .detail import Instance, _unfreezeable
 from pathlib import Path
 
 __version__ = open(Path(__file__).parent / "version.txt").read()
 del Path
 
-__all__ = ["ImmutableError", "freeze", "deepfreeze"]
+__all__ = [
+    "ImmutableError",
+    "freeze",
+    "deepfreeze",
+    "thaw",
+    "deepthaw",
+    "is_frozen",
+    "warn_on_enum",
+    "deepfreeze_object_blacklist",
+]
+
+#: Enums cannot be made immutable by :func:`~cryostasis.freeze` (yet).
+#: Hence, a warning is issued when an enum is encountered.
+#: Set this variable to False to suppress the warning.
+warn_on_enum = True
+
+#: List of objects that will be ignored by :func:`cryostasis.deepfreeze`.
+#: Any object placed in here will not be frozen and will also terminate the traversal (the object will become a leaf in the traversal graph).
+deepfreeze_object_blacklist = list(_unfreezeable)
+
+#: List of types, whose instances will be ignored by :func:`cryostasis.deepfreeze`.
+#: Any object that is of a type placed in here will not be frozen and will also terminate the traversal (the object will become a leaf in the traversal graph).
+deepfreeze_type_blacklist = list(_unfreezeable)
+
+del _unfreezeable
 
 
 class ImmutableError(Exception):
@@ -49,16 +76,30 @@ def freeze(
         >>> l[0] = 5            #  raises ImmutableError
         >>> l.append(42)        #  raises ImmutableError
     """
+    import gc
 
-    from .detail import _create_dynamic_frozen_type, IMMUTABLE_TYPES, Frozen
+    from .detail import _create_frozen_type, _is_special, _unfreezeable, IMMUTABLE_TYPES
     from ._builtin_helpers import _set_class_on_builtin_or_slots
 
-    if obj.__class__ in IMMUTABLE_TYPES or obj.__class__.__bases__[0] is Frozen:
+    if isinstance(obj, _unfreezeable):
+        if warn_on_enum:
+            warnings.warn(
+                f"Skipping {obj} as enums are currently not supported in `freeze`",
+                RuntimeWarning,
+            )
         return obj
 
-    obj_type = obj.__class__
-    frozen_type = _create_dynamic_frozen_type(obj_type, freeze_attributes, freeze_items)
-    if isinstance(obj, (list, set, dict)) or hasattr(obj_type, "__slots__"):
+    # do nothing if already immutable or frozen
+    if obj.__class__ in IMMUTABLE_TYPES or is_frozen(obj):
+        return obj
+
+    # special handling for mappingproxy
+    # can be circumvented using gc to obtain the underlying dict
+    if isinstance(obj, type(type.__dict__)):
+        obj = gc.get_referents(obj)[0]
+
+    frozen_type = _create_frozen_type(obj, freeze_attributes, freeze_items)
+    if _is_special(obj):
         _set_class_on_builtin_or_slots(obj, frozen_type)
     else:
         obj.__class__ = frozen_type
@@ -114,23 +155,15 @@ def thaw(obj: Instance) -> Instance:
     Returns:
         A new reference to the thawed instance. The thawing itself happens in-place. The returned reference is just for convenience.
     """
-    from .detail import IMMUTABLE_TYPES, Frozen
+    from .detail import _is_frozen_function, _is_special
     from ._builtin_helpers import _set_class_on_builtin_or_slots
 
-    obj_type = obj.__class__
-    bases = obj_type.__bases__
-
-    if obj_type in IMMUTABLE_TYPES:
-        return obj  # Nothing to do here
-
-    if bases[0] is not Frozen:
-        import warnings
-
-        warnings.warn(f"Attempting to thaw a non-frozen instance {obj}.")
+    if not is_frozen(obj):
         return obj
 
-    initial_type = obj_type.__bases__[1]
-    if isinstance(obj, (list, set, dict)) or hasattr(obj_type, "__slots__"):
+    obj_type = obj.__class__
+    initial_type = FunctionType if _is_frozen_function(obj) else obj_type.__bases__[1]
+    if _is_special(obj) or _is_frozen_function(obj):
         _set_class_on_builtin_or_slots(obj, initial_type)
     else:
         object.__setattr__(obj, "__class__", initial_type)
@@ -164,9 +197,8 @@ def is_frozen(obj: Instance) -> bool:
     Returns:
         True if the object is frozen, False otherwise.
     """
-    from .detail import Frozen
 
-    return isinstance(obj, Frozen)
+    return hasattr(obj, "__frozen__")
 
 
 del Instance
