@@ -17,7 +17,7 @@ from typing import TypeVar, Callable
 
 Instance = TypeVar("Instance", bound=object)
 
-# Currently unfreezable. Might be supported in the future.
+# Currently unfreezeable. Might be supported in the future.
 _unfreezeable = (Enum, EnumMeta, staticmethod, classmethod)
 
 

@@ -1,10 +1,9 @@
-import warnings
-from types import FunctionType
-
 from .detail import Instance, _unfreezeable
 from pathlib import Path
 
-__version__ = open(Path(__file__).parent / "version.txt").read()
+with open(Path(__file__).parent / "version.txt") as version_file:
+    __version__ = version_file.read()
+
 del Path
 
 __all__ = [
@@ -16,6 +15,7 @@ __all__ = [
     "is_frozen",
     "warn_on_enum",
     "deepfreeze_object_blacklist",
+    "deepfreeze_type_blacklist",
 ]
 
 #: Enums cannot be made immutable by :func:`~cryostasis.freeze` (yet).
@@ -77,6 +77,7 @@ def freeze(
         >>> l.append(42)        #  raises ImmutableError
     """
     import gc
+    import warnings
 
     from .detail import _create_frozen_type, _is_special, _unfreezeable, IMMUTABLE_TYPES
     from ._builtin_helpers import _set_class_on_builtin_or_slots
@@ -131,8 +132,8 @@ def deepfreeze(
         >>>
         >>> d = Dummy(value=[1,2,3])
         >>> deepfreeze(d)
-        >>> d.value = 9001              # raises ImmutableError
         >>> d.value[0] = 42             # raises ImmutableError
+        >>> d.value = 9001              # raises ImmutableError
         >>> d.a_dict['c'].append(0)     # raises ImmutableError
     """
     from .detail import _traverse_and_apply
@@ -155,6 +156,8 @@ def thaw(obj: Instance) -> Instance:
     Returns:
         A new reference to the thawed instance. The thawing itself happens in-place. The returned reference is just for convenience.
     """
+    from types import FunctionType
+
     from .detail import _is_frozen_function, _is_special
     from ._builtin_helpers import _set_class_on_builtin_or_slots
 

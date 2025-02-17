@@ -347,7 +347,7 @@ def test_freeze_memory_consumption():
 def test_freeze_descriptors():
     """Tests that `freeze` also works with descriptors"""
 
-    class Descriptor():
+    class Descriptor:
 
         def __init__(self):
             self.val = None
@@ -361,7 +361,7 @@ def test_freeze_descriptors():
         def __delete__(self, instance):
             raise RuntimeError("You shall not delete me!")
 
-    class DummyWithDescriptor():
+    class DummyWithDescriptor:
 
         descriptor = Descriptor()
 
