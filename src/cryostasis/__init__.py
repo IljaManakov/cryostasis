@@ -1,3 +1,6 @@
+import dataclasses
+from typing import Union, ClassVar
+
 from .detail import Instance, _unfreezeable
 from pathlib import Path
 
@@ -22,6 +25,70 @@ __all__ = [
 #: Hence, a warning is issued when an enum is encountered.
 #: Set this variable to False to suppress the warning.
 warn_on_enum = True
+
+
+@dataclasses.dataclass
+class Exclusions:
+    """
+    Class representing exclusions from recursive functions like :func:`~cryostasis.deepfreeze` and :func:`~cryostasis.deepthaw`.
+    """
+
+    #: Sentinel object signifying that a query in :~cryostasis.Exclusions.contains` was not set.
+    NOT_SET: ClassVar[object] = object()
+
+    #: List of attribute names that should be excluded (i.e. arguments to getattr)
+    attrs: list[str] = dataclasses.field(default_factory=list, kw_only=True)
+    #: List of item indices that should be excluded (i.e. arguments to []-operator)
+    items: list[Union[str, int]] = dataclasses.field(default_factory=list, kw_only=True)
+    #: List of types whose subclasses should be excluded (i.e. arguments to issubclass)
+    bases: list[type] = dataclasses.field(default_factory=list, kw_only=True)
+    #: List of types, whose instances should be excluded (i.e. arguments to isinstance)
+    types: list[type] = dataclasses.field(default_factory=list, kw_only=True)
+    #: List of specific objects that should be excluded (i.e. arguments to is operator)
+    objects: list[object] = dataclasses.field(default_factory=list, kw_only=True)
+
+    def __call__(
+        self,
+        *,
+        attr: str = NOT_SET,
+        item: Union[str, int] = NOT_SET,
+        subclass: type = NOT_SET,
+        instance: object = NOT_SET,
+        object: object = NOT_SET,
+    ) -> bool:
+        exclusion_criteria = {
+            "attr": lambda x: x in self.attrs,
+            "item": lambda x: x in self.items,
+            "subclass": lambda x: any(issubclass(x, y) for y in self.bases),
+            "instance": lambda x: any(isinstance(x, y) for y in self.types),
+            "object": lambda x: any(x is y for y in self.objects),
+        }
+
+        import inspect
+
+        args = {
+            param: arg
+            for param in exclusion_criteria
+            if (arg := locals()[param]) is not self.NOT_SET
+        }
+        if not args:
+            raise ValueError(
+                f"{self.__class__.__name__}()` expects a value for at least one of its keyword parameters {list(exclusion_criteria)}"
+            )
+
+        parameters = inspect.signature(self.__call__).parameters
+        for param, arg in args.items():
+            if not isinstance(arg, parameters[param].annotation):
+                raise ValueError(
+                    f"`{arg}` is not a valid argument for `{param}`. Expected instance of {parameters[param].annotation}."
+                )
+
+        for param, arg in args.items():
+            if exclusion_criteria[param](arg):
+                return True
+
+        return False
+
 
 #: List of objects that will be ignored by :func:`cryostasis.deepfreeze`.
 #: Any object placed in here will not be frozen and will also terminate the traversal (the object will become a leaf in the traversal graph).

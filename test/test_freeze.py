@@ -4,9 +4,10 @@ import gc
 import re
 import types
 from copy import deepcopy
+from enum import EnumMeta
 
 import pytest
-from cryostasis import freeze, ImmutableError, deepfreeze, thaw, is_frozen, deepthaw
+from cryostasis import freeze, ImmutableError, deepfreeze, thaw, is_frozen, deepthaw, Exclusions
 
 
 @pytest.fixture(scope="module")
@@ -486,3 +487,49 @@ def test_frozen_not_constructible():
     from cryostasis.detail import Frozen
     with pytest.raises(NotImplementedError):
         Frozen()
+
+
+@pytest.mark.parametrize(
+    ["exclusions", "contains", "expected"],
+    [pytest.param(exc, cont, exp, id=f"{cont} in {exc} is {exp}") for exc, cont, exp in (
+        # positives
+        (dict(attrs=["a", "b"]), dict(attr="b"), True),
+        (dict(items=["a", 1]), dict(item=1), True),
+        (dict(items=["a", 1]), dict(item="a"), True),
+        (dict(bases=[int, type]), dict(subclass=EnumMeta), True),
+        (dict(types=[str, int]), dict(instance=1), True),
+        (dict(objects=[object(), dummy_class]), dict(object=dummy_class), True),
+
+        # matched negatives
+        (dict(attrs=["a", "b"]), dict(attr="c"), False),
+        (dict(items=["a", 1]), dict(item="c"), False),
+        (dict(items=["a", 1]), dict(item=3), False),
+        (dict(bases=[int, type]), dict(subclass=float), False),
+        (dict(types=[str, int]), dict(instance=1.), False),
+        (dict(objects=[object(), dummy_class]), dict(object=object()), False),
+
+        # mismatched negatives
+        (dict(items=["a", 1]), dict(attr="b"), False),
+        (dict(types=[str, int]), dict(item=1), False),
+        (dict(attrs=["a", "b"]), dict(item="a"), False),
+        (dict(objects=[object(), EnumMeta]), dict(subclass=EnumMeta), False),
+        (dict(items=["a", 1]), dict(instance=1), False),
+        (dict(bases=[int, type]), dict(object=type), False),
+    )]
+)
+def test_exclusions_call(exclusions, contains, expected):
+    assert Exclusions(**exclusions)(**contains) is expected
+
+
+@pytest.mark.parametrize(
+    ["contains", "match"],
+    [pytest.param(contains, match, id=f"{contains=}, {match=}") for contains, match in (
+        (dict(), "at least one"),
+        (dict(attr=1), "not a valid"),
+        (dict(item=1.), "not a valid"),
+        (dict(subclass="Hi"), "not a valid"),
+    )]
+)
+def test_exclusions_raises(contains, match):
+    with pytest.raises(ValueError, match=match):
+        Exclusions()(**contains)
