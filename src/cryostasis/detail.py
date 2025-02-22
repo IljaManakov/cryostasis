@@ -14,7 +14,6 @@ from types import (
     MethodWrapperType,
     MethodDescriptorType,
     ClassMethodDescriptorType,
-    NotImplementedType,
     MemberDescriptorType,
 )
 from typing import TypeVar, Callable, TYPE_CHECKING
@@ -320,7 +319,7 @@ IMMUTABLE_TYPES = frozenset(
         MethodDescriptorType,
         MemberDescriptorType,
         ClassMethodDescriptorType,
-        NotImplementedType,
+        type(NotImplemented),
         type(...),
     }
 )
@@ -347,7 +346,7 @@ def _is_frozen_function(obj: object):
 
 def _exclusions_ioperator(
     self: Exclusions, other: object, operator: callable
-) -> NotImplementedType | Exclusions:
+) -> type[NotImplemented] | Exclusions:
     if not isinstance(other, self.__class__):
         return NotImplemented
 
@@ -362,7 +361,7 @@ def _exclusions_ioperator(
 
 def _exclusions_operator(
     self: Exclusions, other: object, operator: callable
-) -> NotImplementedType | Exclusions:
+) -> type[NotImplemented] | Exclusions:
     import operator as operator_module
 
     if not isinstance(other, self.__class__):

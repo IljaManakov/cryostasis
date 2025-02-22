@@ -3,10 +3,10 @@ from __future__ import annotations
 import builtins
 import dataclasses
 import operator
+import sys
 import types
 import typing
 from pathlib import Path
-from types import NotImplementedType
 
 from . import detail
 
@@ -35,8 +35,11 @@ __all__ = [
 #: Set this variable to False to suppress the warning.
 warn_on_enum = True
 
+dataclass_kwargs = dict(kw_only=True, slots=True) if sys.version_info.minor > 9 else {}
+del sys
 
-@dataclasses.dataclass(slots=True, weakref_slot=True)
+
+@dataclasses.dataclass(**dataclass_kwargs)
 class Exclusions:
     """
     Class representing exclusions from recursive functions like :func:`~cryostasis.deepfreeze` and :func:`~cryostasis.deepthaw`.
@@ -46,47 +49,47 @@ class Exclusions:
     NOT_SET: typing.ClassVar[object] = object()
 
     #: Set of attribute names that should be excluded (i.e. arguments to getattr)
-    attrs: set[str] = dataclasses.field(default_factory=set, kw_only=True)
+    attrs: set[str] = dataclasses.field(default_factory=set)
     #: Set of item indices that should be excluded (i.e. arguments to []-operator)
-    items: set[object] = dataclasses.field(default_factory=set, kw_only=True)
+    items: set[object] = dataclasses.field(default_factory=set)
     #: Set of types whose subclasses should be excluded (i.e. arguments to issubclass)
-    bases: set[type] = dataclasses.field(default_factory=set, kw_only=True)
+    bases: set[type] = dataclasses.field(default_factory=set)
     #: Set of types, whose instances should be excluded (i.e. arguments to isinstance)
-    types: set[type] = dataclasses.field(default_factory=set, kw_only=True)
+    types: set[type] = dataclasses.field(default_factory=set)
     #: Set of specific objects that should be excluded (i.e. arguments to is operator)
-    objects: set[object] = dataclasses.field(default_factory=set, kw_only=True)
+    objects: set[object] = dataclasses.field(default_factory=set)
 
-    def __ior__(self, other) -> NotImplementedType | Exclusions:
+    def __ior__(self, other) -> type[NotImplemented] | Exclusions:
         from .detail import _exclusions_ioperator
         import operator
 
         return _exclusions_ioperator(self, other, operator.ior)
 
-    def __or__(self, other) -> NotImplementedType | Exclusions:
+    def __or__(self, other) -> type[NotImplemented] | Exclusions:
         from .detail import _exclusions_operator
         import operator
 
         return _exclusions_operator(self, other, operator.or_)
 
-    def __iand__(self, other) -> NotImplementedType | Exclusions:
+    def __iand__(self, other) -> type[NotImplemented] | Exclusions:
         from .detail import _exclusions_ioperator
         import operator
 
         return _exclusions_ioperator(self, other, operator.iand)
 
-    def __and__(self, other) -> NotImplementedType | Exclusions:
+    def __and__(self, other) -> type[NotImplemented] | Exclusions:
         from .detail import _exclusions_operator
         import operator
 
         return _exclusions_operator(self, other, operator.and_)
 
-    def __isub__(self, other) -> NotImplementedType | Exclusions:
+    def __isub__(self, other) -> type[NotImplemented] | Exclusions:
         from .detail import _exclusions_ioperator
         import operator
 
         return _exclusions_ioperator(self, other, operator.isub)
 
-    def __sub__(self, other) -> NotImplementedType | Exclusions:
+    def __sub__(self, other) -> type[NotImplemented] | Exclusions:
         from .detail import _exclusions_operator
         import operator
 
@@ -101,6 +104,8 @@ class Exclusions:
         instance: builtins.object = NOT_SET,
         object: builtins.object = NOT_SET,
     ) -> bool:
+        function_scope = locals()
+
         exclusion_criteria = {
             "attr": lambda x: x in self.attrs,
             "item": lambda x: x in self.items,
@@ -114,7 +119,7 @@ class Exclusions:
         args = {
             param: arg
             for param in exclusion_criteria
-            if (arg := locals()[param]) is not self.NOT_SET
+            if (arg := function_scope[param]) is not self.NOT_SET
         }
         if not args:
             raise ValueError(
