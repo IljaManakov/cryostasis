@@ -1,0 +1,5 @@
+[report]
+exclude_also =
+    if typing.TYPE_CHECKING:
+    if TYPE_CHECKING:
+	return NotImplemented

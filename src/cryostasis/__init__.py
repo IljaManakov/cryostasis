@@ -18,15 +18,15 @@ with open(Path(__file__).parent / "version.txt") as version_file:
 del Path
 
 __all__ = [
-    "ImmutableError",
-    "freeze",
     "deepfreeze",
-    "thaw",
+    "deepfreeze_exclusions",
     "deepthaw",
+    "Exclusions",
+    "freeze",
+    "ImmutableError",
     "is_frozen",
+    "thaw",
     "warn_on_enum",
-    "deepfreeze_object_blacklist",
-    "deepfreeze_type_blacklist",
 ]
 
 #: Enums cannot be made immutable by :func:`~cryostasis.freeze` (yet).
@@ -47,7 +47,7 @@ class Exclusions:
     #: Set of attribute names that should be excluded (i.e. arguments to getattr)
     attrs: set[str] = dataclasses.field(default_factory=set, kw_only=True)
     #: Set of item indices that should be excluded (i.e. arguments to []-operator)
-    items: set[str | int] = dataclasses.field(default_factory=set, kw_only=True)
+    items: set[object] = dataclasses.field(default_factory=set, kw_only=True)
     #: Set of types whose subclasses should be excluded (i.e. arguments to issubclass)
     bases: set[type] = dataclasses.field(default_factory=set, kw_only=True)
     #: Set of types, whose instances should be excluded (i.e. arguments to isinstance)
@@ -95,7 +95,7 @@ class Exclusions:
         self,
         *,
         attr: str = NOT_SET,
-        item: str | int = NOT_SET,
+        item: builtins.object = NOT_SET,
         subclass: type = NOT_SET,
         instance: builtins.object = NOT_SET,
         object: builtins.object = NOT_SET,
@@ -136,11 +136,9 @@ class Exclusions:
 
 #: List of objects that will be ignored by :func:`cryostasis.deepfreeze`.
 #: Any object placed in here will not be frozen and will also terminate the traversal (the object will become a leaf in the traversal graph).
-deepfreeze_object_blacklist = list(detail._unfreezeable)
-
-#: List of types, whose instances will be ignored by :func:`cryostasis.deepfreeze`.
-#: Any object that is of a type placed in here will not be frozen and will also terminate the traversal (the object will become a leaf in the traversal graph).
-deepfreeze_type_blacklist = list(detail._unfreezeable)
+deepfreeze_exclusions = Exclusions(
+    objects=set(detail._unfreezeable), types=set(detail._unfreezeable)
+)
 
 
 class ImmutableError(Exception):
@@ -217,7 +215,11 @@ def freeze(
 
 
 def deepfreeze(
-    obj: Instance, *, freeze_attributes: bool = True, freeze_items: bool = True
+    obj: Instance,
+    *,
+    freeze_attributes: bool = True,
+    freeze_items: bool = True,
+    exclusions: None | Exclusions = None,
 ) -> Instance:
     """
     Freezes a python object and all of its attributes and items recursively, making all of them it effectively 'immutable'.
@@ -227,6 +229,8 @@ def deepfreeze(
         obj: The object to deepfreeze.
         freeze_attributes: If ``True``, the attributes on the instances will no longer be assignable or deletable. Defaults to ``True``.
         freeze_items: If ``True``, the items (i.e. the []-operator) on the instances will no longer be assignable or deletable. Defaults to ``True``.
+        exclusions: Instance of :class:`~cryostasis.Exclusions` that specifies rules for excluding objects from freezing.
+            The global :attr:~cryostasis.deepfreeze_exclusions` is automatically added to the exclusions rules.
 
     Returns:
         A new reference to the deepfrozen instance. The freezing itself happens in-place. The returned reference is just for convenience.
@@ -248,9 +252,13 @@ def deepfreeze(
     from .detail import _traverse_and_apply
     from functools import partial
 
+    exclusions = exclusions or Exclusions()
     return _traverse_and_apply(
         obj,
-        partial(freeze, freeze_attributes=freeze_attributes, freeze_items=freeze_items),
+        func=partial(
+            freeze, freeze_attributes=freeze_attributes, freeze_items=freeze_items
+        ),
+        exclusions=exclusions | deepfreeze_exclusions,
     )
 
 
@@ -283,20 +291,23 @@ def thaw(obj: Instance) -> Instance:
     return obj
 
 
-def deepthaw(obj: Instance) -> Instance:
+def deepthaw(obj: Instance, *, exclusions: Exclusions | None = None) -> Instance:
     """
     Undoes the freezing on an instance and all of its attributes and items recursively.
     The instance and any object that can be reached from its attributes or items will become mutable again afterward.
 
     Args:
         obj: The object to deep-thaw.
+        exclusions: Instance of :class:`~cryostasis.Exclusions` that specifies rules for excluding objects from thawing.
+            By default, nothing will be excluded.
 
     Returns:
         A new reference to the deep-thawed instance. The thawing itself happens in-place. The returned reference is just for convenience.
     """
     from .detail import _traverse_and_apply
 
-    return _traverse_and_apply(obj, thaw)
+    exclusions = exclusions or Exclusions()
+    return _traverse_and_apply(obj, thaw, exclusions)
 
 
 def is_frozen(obj: Instance) -> bool:

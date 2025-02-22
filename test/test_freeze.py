@@ -527,7 +527,6 @@ def test_exclusions_call(exclusions, contains, expected):
     [pytest.param(contains, match, id=f"{contains=}, {match=}") for contains, match in (
         (dict(), "at least one"),
         (dict(attr=1), "not a valid"),
-        (dict(item=1.), "not a valid"),
         (dict(subclass="Hi"), "not a valid"),
     )]
 )
