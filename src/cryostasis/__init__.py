@@ -3,6 +3,7 @@ from __future__ import annotations
 import builtins
 import dataclasses
 import operator
+import types
 import typing
 from pathlib import Path
 from types import NotImplementedType
@@ -137,8 +138,11 @@ class Exclusions:
 #: List of objects that will be ignored by :func:`cryostasis.deepfreeze`.
 #: Any object placed in here will not be frozen and will also terminate the traversal (the object will become a leaf in the traversal graph).
 deepfreeze_exclusions = Exclusions(
-    objects=set(detail._unfreezeable), types=set(detail._unfreezeable)
+    objects=set(detail._unfreezeable),
+    types=set(detail._unfreezeable) | {types.ModuleType},
 )
+
+del types
 
 
 class ImmutableError(Exception):
