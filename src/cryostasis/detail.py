@@ -1,7 +1,10 @@
+from __future__ import annotations
 import weakref
+from copy import deepcopy
 from enum import Enum, EnumMeta
 from functools import wraps, update_wrapper
 from inspect import signature
+from itertools import repeat
 from types import (
     FunctionType,
     MethodType,
@@ -11,13 +14,16 @@ from types import (
     MethodWrapperType,
     MethodDescriptorType,
     ClassMethodDescriptorType,
+    MemberDescriptorType,
 )
-from typing import TypeVar, Callable
+from typing import TypeVar, Callable, TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from cryostasis import Exclusions
 
 Instance = TypeVar("Instance", bound=object)
 
-# Currently unfreezable. Might be supported in the future.
+# Currently unfreezeable. Might be supported in the future.
 _unfreezeable = (Enum, EnumMeta, staticmethod, classmethod)
 
 
@@ -237,11 +243,8 @@ def _create_dynamic_frozen_type(obj: object, fr_attr: bool, fr_item: bool):
 
 
 def _traverse_and_apply(
-    obj: Instance, func: Callable[[Instance], Instance]
+    obj: Instance, func: Callable[[Instance], Instance], exclusions: Exclusions
 ) -> Instance:
-    from itertools import chain
-    from cryostasis import deepfreeze_object_blacklist, deepfreeze_type_blacklist
-
     # set for keeping id's of seen instances
     # we only keep the id's because some instances might not be hashable
     # also we don't want to hold refs to the instances here and weakref is not supported by all types
@@ -253,36 +256,44 @@ def _traverse_and_apply(
         else:
             return obj
 
-        if obj in deepfreeze_object_blacklist:
+        if isinstance(obj, type) and exclusions(subclass=obj):
             return obj
 
-        if any(isinstance(obj, t) for t in deepfreeze_type_blacklist):
+        if exclusions(instance=obj, object=obj):
             return obj
 
         func(obj)
 
         # freeze all attributes
         try:
-            attr_iterator = vars(obj).values()
+            attr_iterator = vars(obj).items()
         except TypeError:
             pass
         else:
-            for attr in attr_iterator:
-                _traverse_and_apply_impl(attr)
+            for attr, value in attr_iterator:
+                if exclusions(attr=attr):
+                    continue
+                _traverse_and_apply_impl(value)
 
         if isinstance(obj, str):
             return obj
 
         # freeze all items
         try:
-            item_iterator = iter(obj)
             if isinstance(obj, dict):
-                item_iterator = chain(item_iterator, obj.values())
+                item_iterator = zip(iter(obj.keys()), iter(obj.values()))
+            elif isinstance(obj, (set, frozenset)):
+                item_iterator = zip(repeat(None, len(obj)), iter(obj))
+            else:
+                item_iterator = enumerate(iter(obj))
         except TypeError:
             pass
         else:
-            for item in item_iterator:
-                _traverse_and_apply_impl(item)
+            for key, value in item_iterator:
+                if exclusions(item=key):
+                    continue
+                _traverse_and_apply_impl(key)
+                _traverse_and_apply_impl(value)
 
         return obj
 
@@ -306,7 +317,10 @@ IMMUTABLE_TYPES = frozenset(
         WrapperDescriptorType,
         MethodWrapperType,
         MethodDescriptorType,
+        MemberDescriptorType,
         ClassMethodDescriptorType,
+        type(NotImplemented),
+        type(...),
     }
 )
 
@@ -328,3 +342,33 @@ def _clone_function(function: FunctionType):
 
 def _is_frozen_function(obj: object):
     return hasattr(obj, "__original_function__")
+
+
+def _exclusions_ioperator(
+    self: Exclusions, other: object, operator: callable
+) -> type[NotImplemented] | Exclusions:
+    if not isinstance(other, self.__class__):
+        return NotImplemented
+
+    for field in self.__dataclass_fields__:
+        if field == "NOT_SET":
+            continue
+        attr = getattr(self, field)
+        operator(attr, getattr(other, field))
+
+    return self
+
+
+def _exclusions_operator(
+    self: Exclusions, other: object, operator: callable
+) -> type[NotImplemented] | Exclusions:
+    import operator as operator_module
+
+    if not isinstance(other, self.__class__):
+        return NotImplemented
+
+    new_exclusions = deepcopy(self)
+    operator = getattr(operator_module, f"i{operator.__name__.strip('_')}")
+    operator(new_exclusions, other)
+
+    return new_exclusions

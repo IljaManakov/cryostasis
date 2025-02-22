@@ -1,12 +1,16 @@
 import contextlib
 import enum
 import gc
+import operator
+import pathlib
 import re
 import types
 from copy import deepcopy
+from enum import EnumMeta
 
 import pytest
-from cryostasis import freeze, ImmutableError, deepfreeze, thaw, is_frozen, deepthaw
+from cryostasis import freeze, ImmutableError, deepfreeze, thaw, is_frozen, deepthaw, Exclusions
+from cryostasis.detail import _traverse_and_apply
 
 
 @pytest.fixture(scope="module")
@@ -22,6 +26,10 @@ def dummy_class():
             self.value = value
             self._list = [1, 2, 3]
             self.color = Color.RED
+            self._dict = {"a": 1.1, "b": 2.2, "c": 3.3}
+            self.over = 9000
+            self.some_type = object
+            self.some_instance = pathlib.PurePath()
 
         def __repr__(self):
             return f"Dummy(value={self.value})"
@@ -347,7 +355,7 @@ def test_freeze_memory_consumption():
 def test_freeze_descriptors():
     """Tests that `freeze` also works with descriptors"""
 
-    class Descriptor():
+    class Descriptor:
 
         def __init__(self):
             self.val = None
@@ -361,7 +369,7 @@ def test_freeze_descriptors():
         def __delete__(self, instance):
             raise RuntimeError("You shall not delete me!")
 
-    class DummyWithDescriptor():
+    class DummyWithDescriptor:
 
         descriptor = Descriptor()
 
@@ -486,3 +494,91 @@ def test_frozen_not_constructible():
     from cryostasis.detail import Frozen
     with pytest.raises(NotImplementedError):
         Frozen()
+
+
+@pytest.mark.parametrize(
+    ["exclusions", "contains", "expected"],
+    [pytest.param(exc, cont, exp, id=f"{cont} in {exc} is {exp}") for exc, cont, exp in (
+        # positives
+        (dict(attrs=["a", "b"]), dict(attr="b"), True),
+        (dict(items=["a", 1]), dict(item=1), True),
+        (dict(items=["a", 1]), dict(item="a"), True),
+        (dict(bases=[int, type]), dict(subclass=EnumMeta), True),
+        (dict(types=[str, int]), dict(instance=1), True),
+        (dict(objects=[object(), dummy_class]), dict(object=dummy_class), True),
+
+        # matched negatives
+        (dict(attrs=["a", "b"]), dict(attr="c"), False),
+        (dict(items=["a", 1]), dict(item="c"), False),
+        (dict(items=["a", 1]), dict(item=3), False),
+        (dict(bases=[int, type]), dict(subclass=float), False),
+        (dict(types=[str, int]), dict(instance=1.), False),
+        (dict(objects=[object(), dummy_class]), dict(object=object()), False),
+
+        # mismatched negatives
+        (dict(items=["a", 1]), dict(attr="b"), False),
+        (dict(types=[str, int]), dict(item=1), False),
+        (dict(attrs=["a", "b"]), dict(item="a"), False),
+        (dict(objects=[object(), EnumMeta]), dict(subclass=EnumMeta), False),
+        (dict(items=["a", 1]), dict(instance=1), False),
+        (dict(bases=[int, type]), dict(object=type), False),
+    )]
+)
+def test_exclusions_call(exclusions, contains, expected):
+    assert Exclusions(**exclusions)(**contains) is expected
+
+
+@pytest.mark.parametrize(
+    ["contains", "match"],
+    [pytest.param(contains, match, id=f"{contains=}, {match=}") for contains, match in (
+        (dict(), "at least one"),
+        (dict(attr=1), "not a valid"),
+        (dict(subclass="Hi"), "not a valid"),
+    )]
+)
+def test_exclusions_raises(contains, match):
+    with pytest.raises(ValueError, match=match):
+        Exclusions()(**contains)
+
+
+@pytest.mark.parametrize(
+    ["left", "right"],
+    [(Exclusions(attrs={"a", "b"}, items={1, 2}, types={object, Exclusions}, bases={int, float}, objects={1., 2.}),
+    Exclusions(attrs={"b", "c"}, items={2, 3}, types={Exclusions, type}, bases={float, str}, objects={2., 3.}))]
+)
+@pytest.mark.parametrize(
+    ["operator", "expected"],
+    [pytest.param(op, exp, id=op.__name__) for op, exp in (
+        (operator.sub, Exclusions(attrs={"a"}, items={1}, types={object}, bases={int}, objects={1.})),
+        (operator.and_, Exclusions(attrs={"b"}, items={2}, types={Exclusions}, bases={float}, objects={2.})),
+        (operator.or_, Exclusions(attrs={"a", "b", "c"}, items={1, 2, 3}, types={object, Exclusions, type}, bases={int, float, str}, objects={1., 2., 3.}))
+    )]
+)
+def test_exclusions_arithmetic(left, right, operator, expected):
+    assert operator(left, right) == expected
+
+
+@pytest.mark.parametrize(
+    ("exclusions", "expected"),
+    (pytest.param(exc, exp, id=repr(exc)[11:-1]) for exc, exp in [
+        (Exclusions(attrs={"value", "_list", "_dict", "color", "over", "some_type", "some_instance"}), [0, 1, 2, 3]),
+        (Exclusions(attrs={"value", "_list", "_dict", "color", "over", "some_type", "some_instance"}, items={0, 1, 2}), []),
+        (Exclusions(attrs={"value", "_list", "_dict", "color", "over", "some_type"}, items={0, 1, 2}, objects={pathlib.PurePath()}), [pathlib.PurePath()]),
+        (Exclusions(attrs={"value", "_list", "_dict", "color", "over", "some_type"}, items={0, 1, 2}, types={pathlib.PurePath}), []),
+        (Exclusions(attrs={"value", "_list", "_dict", "color", "over", "some_type", "some_instance"}, items={0, 1, 2}, types={dummy_class.__pytest_wrapped__.obj()}), []),
+        (Exclusions(attrs={"_list", "_dict", "color", "some_instance"}, items={0, 1, 2}, bases={object}), [10, 9000]),
+        (Exclusions(types={object}), []),
+        (Exclusions(types={str, int, enum.Enum, pathlib.PurePath, type, list}), [{'a': 1.1, 'b': 2.2, 'c': 3.3}, 1.1, 2.2, 3.3]),
+        (Exclusions(items={"a", "b", "c", 0, 1, 2}, bases={object}, attrs={"color"}),
+         [10, [1, 2, 3], {'a': 1.1, 'b': 2.2, 'c': 3.3}, 9000, pathlib.PurePath()]),
+    ])
+)
+def test_traversal_exclusions(dummy_class, exclusions, expected):
+    instance = dummy_class(10)
+    if not exclusions(instance=instance):
+        expected.insert(0, instance)
+
+    collected = []
+    collection_fn = lambda x: collected.append(x)
+    _traverse_and_apply(instance, collection_fn, exclusions)
+    assert collected == expected
