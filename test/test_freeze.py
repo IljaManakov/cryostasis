@@ -1,6 +1,7 @@
 import contextlib
 import enum
 import gc
+import operator
 import re
 import types
 from copy import deepcopy
@@ -533,3 +534,20 @@ def test_exclusions_call(exclusions, contains, expected):
 def test_exclusions_raises(contains, match):
     with pytest.raises(ValueError, match=match):
         Exclusions()(**contains)
+
+
+@pytest.mark.parametrize(
+    ["left", "right"],
+    [(Exclusions(attrs={"a", "b"}, items={1, 2}, types={object, Exclusions}, bases={int, float}, objects={1., 2.}),
+    Exclusions(attrs={"b", "c"}, items={2, 3}, types={Exclusions, type}, bases={float, str}, objects={2., 3.}))]
+)
+@pytest.mark.parametrize(
+    ["operator", "expected"],
+    [pytest.param(op, exp, id=op.__name__) for op, exp in (
+        (operator.sub, Exclusions(attrs={"a"}, items={1}, types={object}, bases={int}, objects={1.})),
+        (operator.and_, Exclusions(attrs={"b"}, items={2}, types={Exclusions}, bases={float}, objects={2.})),
+        (operator.or_, Exclusions(attrs={"a", "b", "c"}, items={1, 2, 3}, types={object, Exclusions, type}, bases={int, float, str}, objects={1., 2., 3.}))
+    )]
+)
+def test_exclusions_arithmetic(left, right, operator, expected):
+    assert operator(left, right) == expected

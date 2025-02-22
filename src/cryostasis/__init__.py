@@ -1,8 +1,16 @@
-import dataclasses
-from typing import Union, ClassVar
+from __future__ import annotations
 
-from .detail import Instance, _unfreezeable
+import builtins
+import dataclasses
+import operator
+import typing
 from pathlib import Path
+from types import NotImplementedType
+
+from . import detail
+
+if typing.TYPE_CHECKING:
+    from .detail import Instance
 
 with open(Path(__file__).parent / "version.txt") as version_file:
     __version__ = version_file.read()
@@ -27,34 +35,70 @@ __all__ = [
 warn_on_enum = True
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(slots=True, weakref_slot=True)
 class Exclusions:
     """
     Class representing exclusions from recursive functions like :func:`~cryostasis.deepfreeze` and :func:`~cryostasis.deepthaw`.
     """
 
     #: Sentinel object signifying that a query in :~cryostasis.Exclusions.contains` was not set.
-    NOT_SET: ClassVar[object] = object()
+    NOT_SET: typing.ClassVar[object] = object()
 
-    #: List of attribute names that should be excluded (i.e. arguments to getattr)
-    attrs: list[str] = dataclasses.field(default_factory=list, kw_only=True)
-    #: List of item indices that should be excluded (i.e. arguments to []-operator)
-    items: list[Union[str, int]] = dataclasses.field(default_factory=list, kw_only=True)
-    #: List of types whose subclasses should be excluded (i.e. arguments to issubclass)
-    bases: list[type] = dataclasses.field(default_factory=list, kw_only=True)
-    #: List of types, whose instances should be excluded (i.e. arguments to isinstance)
-    types: list[type] = dataclasses.field(default_factory=list, kw_only=True)
-    #: List of specific objects that should be excluded (i.e. arguments to is operator)
-    objects: list[object] = dataclasses.field(default_factory=list, kw_only=True)
+    #: Set of attribute names that should be excluded (i.e. arguments to getattr)
+    attrs: set[str] = dataclasses.field(default_factory=set, kw_only=True)
+    #: Set of item indices that should be excluded (i.e. arguments to []-operator)
+    items: set[str | int] = dataclasses.field(default_factory=set, kw_only=True)
+    #: Set of types whose subclasses should be excluded (i.e. arguments to issubclass)
+    bases: set[type] = dataclasses.field(default_factory=set, kw_only=True)
+    #: Set of types, whose instances should be excluded (i.e. arguments to isinstance)
+    types: set[type] = dataclasses.field(default_factory=set, kw_only=True)
+    #: Set of specific objects that should be excluded (i.e. arguments to is operator)
+    objects: set[object] = dataclasses.field(default_factory=set, kw_only=True)
+
+    def __ior__(self, other) -> NotImplementedType | Exclusions:
+        from .detail import _exclusions_ioperator
+        import operator
+
+        return _exclusions_ioperator(self, other, operator.ior)
+
+    def __or__(self, other) -> NotImplementedType | Exclusions:
+        from .detail import _exclusions_operator
+        import operator
+
+        return _exclusions_operator(self, other, operator.or_)
+
+    def __iand__(self, other) -> NotImplementedType | Exclusions:
+        from .detail import _exclusions_ioperator
+        import operator
+
+        return _exclusions_ioperator(self, other, operator.iand)
+
+    def __and__(self, other) -> NotImplementedType | Exclusions:
+        from .detail import _exclusions_operator
+        import operator
+
+        return _exclusions_operator(self, other, operator.and_)
+
+    def __isub__(self, other) -> NotImplementedType | Exclusions:
+        from .detail import _exclusions_ioperator
+        import operator
+
+        return _exclusions_ioperator(self, other, operator.isub)
+
+    def __sub__(self, other) -> NotImplementedType | Exclusions:
+        from .detail import _exclusions_operator
+        import operator
+
+        return _exclusions_operator(self, other, operator.sub)
 
     def __call__(
         self,
         *,
         attr: str = NOT_SET,
-        item: Union[str, int] = NOT_SET,
+        item: str | int = NOT_SET,
         subclass: type = NOT_SET,
-        instance: object = NOT_SET,
-        object: object = NOT_SET,
+        instance: builtins.object = NOT_SET,
+        object: builtins.object = NOT_SET,
     ) -> bool:
         exclusion_criteria = {
             "attr": lambda x: x in self.attrs,
@@ -78,7 +122,7 @@ class Exclusions:
 
         parameters = inspect.signature(self.__call__).parameters
         for param, arg in args.items():
-            if not isinstance(arg, parameters[param].annotation):
+            if not isinstance(arg, eval(parameters[param].annotation)):
                 raise ValueError(
                     f"`{arg}` is not a valid argument for `{param}`. Expected instance of {parameters[param].annotation}."
                 )
@@ -92,13 +136,11 @@ class Exclusions:
 
 #: List of objects that will be ignored by :func:`cryostasis.deepfreeze`.
 #: Any object placed in here will not be frozen and will also terminate the traversal (the object will become a leaf in the traversal graph).
-deepfreeze_object_blacklist = list(_unfreezeable)
+deepfreeze_object_blacklist = list(detail._unfreezeable)
 
 #: List of types, whose instances will be ignored by :func:`cryostasis.deepfreeze`.
 #: Any object that is of a type placed in here will not be frozen and will also terminate the traversal (the object will become a leaf in the traversal graph).
-deepfreeze_type_blacklist = list(_unfreezeable)
-
-del _unfreezeable
+deepfreeze_type_blacklist = list(detail._unfreezeable)
 
 
 class ImmutableError(Exception):
@@ -271,4 +313,4 @@ def is_frozen(obj: Instance) -> bool:
     return hasattr(obj, "__frozen__")
 
 
-del Instance
+del detail, operator, dataclasses

@@ -1,4 +1,6 @@
+from __future__ import annotations
 import weakref
+from copy import deepcopy
 from enum import Enum, EnumMeta
 from functools import wraps, update_wrapper
 from inspect import signature
@@ -11,9 +13,12 @@ from types import (
     MethodWrapperType,
     MethodDescriptorType,
     ClassMethodDescriptorType,
+    NotImplementedType,
 )
-from typing import TypeVar, Callable
+from typing import TypeVar, Callable, TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from cryostasis import Exclusions
 
 Instance = TypeVar("Instance", bound=object)
 
@@ -328,3 +333,33 @@ def _clone_function(function: FunctionType):
 
 def _is_frozen_function(obj: object):
     return hasattr(obj, "__original_function__")
+
+
+def _exclusions_ioperator(
+    self: Exclusions, other: object, operator: callable
+) -> NotImplementedType | Exclusions:
+    if not isinstance(other, self.__class__):
+        return NotImplemented
+
+    for field in self.__dataclass_fields__:
+        if field == "NOT_SET":
+            continue
+        attr = getattr(self, field)
+        operator(attr, getattr(other, field))
+
+    return self
+
+
+def _exclusions_operator(
+    self: Exclusions, other: object, operator: callable
+) -> NotImplementedType | Exclusions:
+    import operator as operator_module
+
+    if not isinstance(other, self.__class__):
+        return NotImplemented
+
+    new_exclusions = deepcopy(self)
+    operator = getattr(operator_module, f"i{operator.__name__.strip('_')}")
+    operator(new_exclusions, other)
+
+    return new_exclusions
