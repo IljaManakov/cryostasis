@@ -15,6 +15,7 @@ from types import (
     MethodDescriptorType,
     ClassMethodDescriptorType,
     NotImplementedType,
+    MemberDescriptorType,
 )
 from typing import TypeVar, Callable, TYPE_CHECKING
 
@@ -317,7 +318,10 @@ IMMUTABLE_TYPES = frozenset(
         WrapperDescriptorType,
         MethodWrapperType,
         MethodDescriptorType,
+        MemberDescriptorType,
         ClassMethodDescriptorType,
+        NotImplementedType,
+        type(...),
     }
 )
 
