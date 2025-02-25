@@ -1,3 +1,13 @@
+"""
+cryostasis
+==========
+
+This module contains function for :func:`~cryostasis.freeze` ing python objects at the instance level, making the instance immutable.
+Attempted modifications to a frozen instance will result in an :class:`~cryostasis.ImmutableError` being raised.
+Apart from this, frozen instance will behave the same as before with no changes to their interface (freezing is not an act of wrapping).
+Frozen instances can be reverted to their former mutable state by :func:`~cryostasis.thaw` ing.
+"""
+
 from __future__ import annotations
 
 import builtins
@@ -42,16 +52,54 @@ del sys
 @dataclasses.dataclass(**dataclass_kwargs)
 class Exclusions:
     """
-    Class representing exclusions from recursive functions like :func:`~cryostasis.deepfreeze` and :func:`~cryostasis.deepthaw`.
+    This class represents exclusions for the recursive functions :func:`~cryostasis.deepfreeze` and :func:`~cryostasis.deepthaw`.
+    Normally those functions recurse through **all** attributes (except those with dunder names) and items.
+    Sometimes it is desirable to omit certain cases from this recursion, which is possible by setting up exclusion rules in the form of an instance of this class.
+    It provides members for exclusion rules in the following settings:
+
+        * :attr:`~cryostasis.Exclusions.attrs`: allows to exclude attributes based on their attribute name, i.e. the string you would pass to ``getattr`` to retrieve it.
+        * :attr:`~cryostasis.Exclusions.items`: allows exclusion of items based on their keys. This can be any hashable object for e.g. dicts and sets or integers for index-based containers like lists.
+        * :attr:`~cryostasis.Exclusions.bases`: can be used to exclude types that are a subclass of any type in :attr:`~cryostasis.Exclusions.bases`. Note that this will only exclude types and not instances.
+        * :attr:`~cryostasis.Exclusions.types`: is used to exclude instances of certain types. Any object that would return true for an instance check with any type in this set will be excluded.
+        * :attr:`~cryostasis.Exclusions.objects`: enables exclusion of specific objects. Only the particular objects (as determined through the `is` operator) in this set will be excluded.
+
+    These rules can be combined freely. Any object that fits the criteria for any rule will be excluded (i.e. the checks are combined with ``or``).
+    Furthermore, instances of this class can be combined in the same way as :class:`set` instances using the ``-``, ``|`` and ``&`` operators.
+
+    Examples:
+
+        >>> from cryostasis import Exclusions
+        >>> class Dummy:
+        ...     def __init__(self):
+        ...         my_attr = 10
+        ...         my_list = [1, 2, 3]
+        ...         my_dict = {"my_attr": 20, "my_list": [4, 5, 6], 2: "a"}
+        ...         my_obj1 = object()
+        ...         my_obj2 = object()
+        ...         my_class = Exclusions
+        ...
+        ... dummy = Dummy()
+        >>> e1 = Exlusions(attrs={"my_attr"})  # excludes the ``my_attr`` attribute, regardless of its value but not ``"my_attr"`` in ``my_dict``".
+        >>> e2 = Exlusions(items={2})  # excludes ``my_list[2]``, ``my_dict[2]`` and ``my_dict["my_list"][2]``.
+        >>> e3 = Exlusions(bases={object})  # excludes only ``my_class`` because it is a type that is a subclass of object.
+        >>> e4 = Exlusions(types={list})  # excludes all list instances, in this case ``my_list`` and ``my_dict["my_list"]``.
+        >>> e5 = Exlusions(objects={dummy.my_obj1})  # excludes only ``my_obj1`` but not ``my_obj2`` because they are different instances.
+        >>>
+        >>> e1 | e2  # gives union of e1 and e2
+        Exclusions(attrs={'my_attr'}, items={2}, bases=set(), types=set(), objects=set())
+        >>> e1 & e2  # gives intersection between e1 and e2 (empty in this case)
+        Exclusions(attrs=set(), items=set(), bases=set(), types=set(), objects=set())
+        >>> e1 - e2  # removes rules of e2 from e1 (no changes in this case since there is no overlap)
+        Exclusions(attrs={'my_attr'}, items=set(), bases=set(), types=set(), objects=set())
     """
 
-    #: Sentinel object signifying that a query in :~cryostasis.Exclusions.contains` was not set.
+    # Sentinel object signifying that a query in :~cryostasis.Exclusions.contains` was not set.
     NOT_SET: typing.ClassVar[object] = object()
 
     #: Set of attribute names that should be excluded (i.e. arguments to getattr)
     attrs: set[str] = dataclasses.field(default_factory=set)
     #: Set of item indices that should be excluded (i.e. arguments to []-operator)
-    items: set[object] = dataclasses.field(default_factory=set)
+    items: set[typing.Hashable] = dataclasses.field(default_factory=set)
     #: Set of types whose subclasses should be excluded (i.e. arguments to issubclass)
     bases: set[type] = dataclasses.field(default_factory=set)
     #: Set of types, whose instances should be excluded (i.e. arguments to isinstance)
@@ -239,7 +287,7 @@ def deepfreeze(
         freeze_attributes: If ``True``, the attributes on the instances will no longer be assignable or deletable. Defaults to ``True``.
         freeze_items: If ``True``, the items (i.e. the []-operator) on the instances will no longer be assignable or deletable. Defaults to ``True``.
         exclusions: Instance of :class:`~cryostasis.Exclusions` that specifies rules for excluding objects from freezing.
-            The global :attr:~cryostasis.deepfreeze_exclusions` is automatically added to the exclusions rules.
+            The global :attr:`~cryostasis.deepfreeze_exclusions` is automatically added to the exclusions rules.
 
     Returns:
         A new reference to the deepfrozen instance. The freezing itself happens in-place. The returned reference is just for convenience.

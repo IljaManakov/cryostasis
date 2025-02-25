@@ -29,7 +29,8 @@ Issues = "https://github.com/IljaManakov/cryostasis/issues"
 
 [project.optional-dependencies]
 test = ["pytest", "psutil"]
-dev = ["cryostasis[test]", "build", "tox", "pytest-cov", "ruff"]
+doc = ["sphinx", "sphinx_rtd_theme", "myst-parser"]
+dev = ["cryostasis[test]", "cryostasis[doc]", "build", "tox", "pytest-cov", "ruff"]
 
 [tool.setuptools.dynamic]
 version = {file = "src/cryostasis/version.txt"}
