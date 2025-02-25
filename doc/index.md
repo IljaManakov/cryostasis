@@ -3,7 +3,7 @@
 
 ```{toctree}
 :maxdepth: 2
-:caption: Contents:
+:caption: Reference
 
 reference.md
 ```
