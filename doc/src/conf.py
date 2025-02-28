@@ -5,7 +5,7 @@ from pathlib import Path
 project = 'cryostasis'
 copyright = '2025, Ilja Manakov'
 author = 'Ilja Manakov'
-with open(Path(__file__).parent.parent / "src" / "cryostasis" / "version.txt") as version_file:
+with open(Path(__file__).parent.parent.parent / "src" / "cryostasis" / "version.txt") as version_file:
     version = version_file.read()
 copyright = "2025, Ilja Manakov"
 
