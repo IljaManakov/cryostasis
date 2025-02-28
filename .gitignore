@@ -7,3 +7,4 @@
 /.venv/
 /src/cryostasis.egg-info/
 /.idea/
+/doc/html/
