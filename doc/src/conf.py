@@ -27,6 +27,9 @@ language = 'en'
 # -- Options for HTML output -------------------------------------------------
 
 html_theme = 'sphinx_rtd_theme'
+html_theme_options = {
+    "github_url": "https://github.com/IljaManakov/cryostasis/"
+}
 
 # -- Options for autodoc -----------------------------------------------------
 
