@@ -5,8 +5,9 @@ from pathlib import Path
 project = 'cryostasis'
 copyright = '2025, Ilja Manakov'
 author = 'Ilja Manakov'
-with open(Path(__file__).parent.parent / "src" / "cryostasis" / "version.txt") as version_file:
-    version = version_file.read()
+with open(Path(__file__).parent.parent.parent / "src" / "cryostasis" / "version.txt") as version_file:
+    version = version_file.read().strip()
+    release = version
 copyright = "2025, Ilja Manakov"
 
 # -- General configuration ---------------------------------------------------
@@ -26,7 +27,13 @@ language = 'en'
 # -- Options for HTML output -------------------------------------------------
 
 html_theme = 'sphinx_rtd_theme'
-html_static_path = ['_static']
+html_context = {
+    "display_github": True,
+    "github_user": "IljaManakov",
+    "github_repo": "cryostasis",
+    "github_version": "main",
+    "conf_py_path": "/doc/src/",
+}
 
 # -- Options for autodoc -----------------------------------------------------
 
