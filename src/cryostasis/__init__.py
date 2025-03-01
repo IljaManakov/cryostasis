@@ -188,8 +188,8 @@ class Exclusions:
         return False
 
 
-#: List of objects that will be ignored by :func:`cryostasis.deepfreeze`.
-#: Any object placed in here will not be frozen and will also terminate the traversal (the object will become a leaf in the traversal graph).
+#: Global exclusion rules for :func:`cryostasis.deepfreeze`.
+#: The rules are always applied in addition to the :code:`exclusions` argument of :func:`cryostasis.deepfreeze`.
 deepfreeze_exclusions = Exclusions(
     objects=set(detail._unfreezeable),
     types=set(detail._unfreezeable) | {types.ModuleType},

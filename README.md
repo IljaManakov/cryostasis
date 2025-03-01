@@ -5,21 +5,24 @@
 
 `cryostasis` is a package that allows to turn arbitrary Python objects immutable.
 The package is very lightweight and does not have any dependencies.
-It offers the `freeze` and `deepfreeze` functions.
+It offers the `freeze` and `deepfreeze` functions to freeze an object in-place.
 When an object is frozen any modification to its attributes or items (i.e. assignment or deletion using the []-operator) will raise an `ImmutableError`.
 All existing attributes, methods and items will still be accessible on the frozen instance though.
-
-You can think of using `cryostasis.freeze` as a more thorough variant of `dataclass(frozen=True)`:
-- unlike the `dataclass` decorator, `freeze` can also be used on instances of builtin types such as lists or dictionaries
-- also unlike the `dataclass`decorator, `deepfreeze` will freeze the instance and all of its attributes and items recursively
-
+Since `freeze` acts in-place rather than applying a wrapper, the freezing affects all sites that hold references to the instance.
+This ensures that the instance cannot be modified by some part of the codebase that just happened to get a reference earlier.
 Frozen instances can be reverted back to their original state using the `thaw` and `deepthaw` functions.
 
 ## Use Cases
 
-As I already alluded to, you can use `freeze` / `deepfreeze` wherever you would have used a frozen dataclass but want to be a bit more thorough.
-More generally, `cryostasis` can be used in any scenario in which a central mutable instance is passed around to multiple sites.
-This could be, for example, a configuration-driven application, where you want to make sure that no site accidentally modifies the central configuration from their local scope.
+### Protecting central / global structures from accidental modification
+You can use`cryostasis` in any scenario in which a central mutable instance is passed around to multiple sites, which should only have "read-only" access to its data.
+This could be, for example, a configuration-driven application, where an initial configuration is loaded and then passed to different functions.
+Another example would be the processing of large JSON responses that are passed to multiple functions.
+
+### Truly frozen dataclasses
+You can use `freeze` / `deepfreeze` (as a decorator) wherever you would have used a `dataclass(frozen=True)` but want to be a bit more thorough:
+- unlike the `dataclass` decorator, `freeze` can also be used on instances of builtin types such as lists or dictionaries
+- also unlike the `dataclass`decorator, `deepfreeze` will freeze the instance and all of its attributes and items recursively
 
 ## Examples
 
@@ -68,6 +71,10 @@ del d.value[0]              # raises ImmutableError
 d.a_dict['c']               # ok -- returns <Frozen([])>
 d.a_dict['c'].append(0)     # raises ImmutableError
 ```
+
+## Documentation
+
+The documentation of `cryostasis` is hosted on [readthedocs](https://cryostasis.readthedocs.io/en/stable/).
 
 ## Report Issues
 

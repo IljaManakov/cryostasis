@@ -25,6 +25,7 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/IljaManakov/cryostasis"
+Documentation = "https://cryostasis.readthedocs.io/en/stable/"
 Issues = "https://github.com/IljaManakov/cryostasis/issues"
 
 [project.optional-dependencies]
