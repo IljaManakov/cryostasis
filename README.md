@@ -20,9 +20,13 @@ This could be, for example, a configuration-driven application, where an initial
 Another example would be the processing of large JSON responses that are passed to multiple functions.
 
 ### Truly frozen dataclasses
-You can use `freeze` / `deepfreeze` (as a decorator) wherever you would have used a `dataclass(frozen=True)` but want to be a bit more thorough:
+You can use `freeze` / `deepfreeze` wherever you would have used a `dataclass(frozen=True)` but want to be a bit more thorough:
 - unlike the `dataclass` decorator, `freeze` can also be used on instances of builtin types such as lists or dictionaries
 - also unlike the `dataclass`decorator, `deepfreeze` will freeze the instance and all of its attributes and items recursively
+
+The freezing can be automated by adding `freeze(self)` / `deepfreeze(self)` in the dataclass' `__post_init__`.
+An additional benefit of this approach over `frozen=True` is that the instance is not yet frozen in the context of `__post_init__`.
+This eliminates the hassle of dealing with argument conversion on frozen dataclass instances.
 
 ## Examples
 
