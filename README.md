@@ -3,7 +3,7 @@
 
 ## Summary
 
-`cryostasis` is a package that allows to turn arbitrary Python objects immutable.
+`cryostasis` is a package that allows turning arbitrary Python objects immutable.
 The package is very lightweight and does not have any dependencies.
 It offers the `freeze` and `deepfreeze` functions to freeze an object in-place.
 When an object is frozen any modification to its attributes or items (i.e. assignment or deletion using the []-operator) will raise an `ImmutableError`.
